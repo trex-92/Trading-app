@@ -198,7 +198,12 @@ class MoomooRestBroker(Broker):
                       "autype": 1, "num": 370}
             if market.extended_hours:
                 params["extended_time"] = 1   # pre/after-market bars (US only)
-            data = self._call("GET", f"/api/v1.0/quote/{self._code(symbol, market)}/history-kline", params=params)
+            try:
+                data = self._call("GET", f"/api/v1.0/quote/{self._code(symbol, market)}/history-kline", params=params)
+            except MoomooError as e:
+                if "invalid" in str(e).lower() and symbol not in str(e):
+                    raise MoomooError(f"{symbol}: {e}", e.code, e.extra) from e   # say WHICH symbol
+                raise
             page = data.get("kline_list", [])
             new = [k for k in page if k["time_key"] not in seen]
             seen.update(k["time_key"] for k in new)
@@ -219,6 +224,12 @@ class MoomooRestBroker(Broker):
         """Static facts (name, board lot, exchange, state) for full codes like 'MY.1155'. Unknown codes are simply absent."""
         data = self._call("POST", "/api/v1.0/quote/stock-basicinfo", json={"code_list": codes})
         return data.get("basic_list", [])
+
+    def unknown_symbols(self, symbols: list[str], market: Market = US) -> list[str]:
+        """The subset of `symbols` that Moomoo does not recognise (one request for the whole list)."""
+        codes = {self._code(x, market): x for x in symbols}
+        known = {r["code"] for r in self.basic_info(list(codes))}
+        return [x for code, x in codes.items() if code not in known]
 
     # ---- live paper-trading support (simulated account only; REAL is deliberately not implemented) ------
     SIM_STATUS = {2: "OPEN", 3: "PARTIAL", 4: "FILLED", 5: "CANCELLED", 6: "REJECTED"}

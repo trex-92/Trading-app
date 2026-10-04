@@ -38,8 +38,9 @@ def parse_request(strategy: str, params: dict, today: date | None = None, market
 
 class BacktestWorker:
     def __init__(self, sync, bars_provider, calendar_path: str = "data/calendar.json", log=print,
-                 markets_path: str | None = "data/markets.json"):
+                 markets_path: str | None = "data/markets.json", symbol_check=None):
         self.sync, self.bars, self.calendar_path, self.log = sync, bars_provider, calendar_path, log
+        self.symbol_check = symbol_check   # callable(tickers, market) -> list of symbols the data source does not recognise
         self.markets_path = markets_path
 
     def poll_once(self) -> int:
@@ -52,6 +53,11 @@ class BacktestWorker:
         try:
             req = parse_request(run["strategy"], run.get("params") or {}, markets_path=self.markets_path)
             market = get_market(req["market"], self.markets_path)
+            unknown = self.symbol_check(req["tickers"], market) if self.symbol_check else []
+            if unknown:
+                raise ValueError(f"Moomoo does not recognise these {market.code} symbols: {', '.join(unknown)}. "
+                                 f"Check the spelling against the code the Moomoo app shows under the stock name. "
+                                 f"Nothing was downloaded.")
             progress = getattr(self.sync, "progress_backtest", lambda *a: None)
             data, n = {}, len(req["tickers"])
             for i, t in enumerate(req["tickers"], 1):

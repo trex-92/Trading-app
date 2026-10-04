@@ -105,3 +105,21 @@ def test_worker_reports_download_progress_per_symbol():
     assert [p.split(":")[1].split("(")[0].strip() for p in sync.progress[:3]] == ["SPY", "QQQ", "IWM"]
     assert "1 of 3" in sync.progress[0] and sync.progress[-1].startswith("Running the simulation")
     assert "p1" in sync.done
+
+
+def test_unknown_symbols_are_named_before_anything_is_downloaded():
+    downloads = []
+
+    def tracking(sym, start, end, market=None):
+        downloads.append(sym)
+        return provider(sym, start, end, market)
+
+    names = ["SPY", "MSFT", "ABBY", "KO", "QQQI"]
+    sync = FakeSync([{"id": "bad", "strategy": "A", "params": req(tickers=names)}])
+    check = lambda tickers, market: [t for t in tickers if t == "ABBY"]  # noqa: E731
+    BacktestWorker(sync, tracking, "nope.json", log=lambda *a: None, symbol_check=check).poll_once()
+    assert "ABBY" in sync.failed["bad"] and "SPY" not in sync.failed["bad"] and "Nothing was downloaded" in sync.failed["bad"]
+    assert downloads == []                                              # failed fast: no rate-limited downloads wasted
+    ok = FakeSync([{"id": "ok", "strategy": "A", "params": req(tickers=["SPY", "KO"])}])
+    BacktestWorker(ok, tracking, "nope.json", log=lambda *a: None, symbol_check=lambda t, m: []).poll_once()
+    assert "ok" in ok.done and downloads == ["SPY", "KO"]

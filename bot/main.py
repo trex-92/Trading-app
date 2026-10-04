@@ -30,7 +30,9 @@ def main() -> None:
             print("[backtest] worker off: this broker has no historical intraday data (use BROKER=moomoo_rest)")
         else:
             worker = BacktestWorker(sync, bars, os.getenv("CALENDAR_FILE", "data/calendar.json"),
-                                    markets_path=os.getenv("MARKETS_FILE", "data/markets.json"))
+                                    markets_path=os.getenv("MARKETS_FILE", "data/markets.json"),
+                                    symbol_check=getattr(engine.broker, "unknown_symbols", None) and
+                                    (lambda tickers, market: engine.broker.unknown_symbols(tickers, market)))
             threading.Thread(target=worker.run_forever, args=(stop,), daemon=True).start()
     if os.getenv("LIVE_STRATEGIES", "no") == "yes":
         if cfg.broker != "moomoo_rest" or cfg.trade_env != "SIMULATE":

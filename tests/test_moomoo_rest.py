@@ -391,3 +391,18 @@ def test_fractional_quantities_are_sent_and_read_correctly(tmp_path):
     assert seen["qty"] == "100"                                         # never "100.0"
     pos = {p.symbol: p.qty for p in b.positions()}
     assert pos == {"QQQ": 0.13, "SPY": 100} and isinstance(pos["SPY"], int)
+
+
+def test_unknown_symbols_and_named_history_errors(tmp_path):
+    from datetime import date
+
+    def h(req):
+        if req.url.path.endswith("/stock-basicinfo"):
+            codes = __import__("json").loads(req.content)["code_list"]
+            return ok_sim({"basic_list": [{"code": c, "lot_size": 1} for c in codes if c != "US.ABBY"]})
+        return httpx.Response(200, json={"ret_code": -7, "ret_msg": "invalid symbol"})
+
+    b = broker(tmp_path, h)
+    assert b.unknown_symbols(["SPY", "ABBY", "KO"]) == ["ABBY"] and b.unknown_symbols(["SPY"]) == []
+    with pytest.raises(Exception, match="ABBY: invalid symbol"):
+        b.intraday_bars("ABBY", date(2026, 9, 1), date(2026, 9, 30))
