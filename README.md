@@ -46,7 +46,7 @@ supabase/migrations/   schema + RLS + realtime publication
 4. `npm test`, `npm run typecheck`, `pytest`.
 
 Moomoo (REST, recommended, no OpenD): `BROKER=moomoo_rest`, then once on a machine with a browser:
-`python -m bot.moomoo_login` (registers an OAuth client, prints an authorize URL, catches the callback on
+`node scripts/moomoo-login.mjs` (Node 18+, no Python needed; or `python -m bot.moomoo_login`) (registers an OAuth client, prints an authorize URL, catches the callback on
 `localhost:60355`, saves tokens to `~/.config/trading-bot/moomoo_tokens.json`, mode 0600). Access tokens last 2h and are
 refreshed automatically; the refresh token is not rotated. Re-run the login if refresh ever fails.
 `SIMULATE` uses Moomoo's `/sim-trade` endpoints; `REAL` uses `/accounts/...` and needs `ALLOW_LIVE=yes` plus
