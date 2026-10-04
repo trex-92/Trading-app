@@ -5,10 +5,10 @@ import { useTheme } from '@/hooks/use-theme';
 
 const TABS = [
   { name: 'index', label: 'Overview', sf: 'chart.line.uptrend.xyaxis', md: 'monitoring' },
-  { name: 'positions', label: 'Positions', sf: 'briefcase', md: 'work' },
-  { name: 'orders', label: 'Orders', sf: 'list.bullet.rectangle', md: 'receipt_long' },
-  { name: 'log', label: 'Log', sf: 'text.alignleft', md: 'terminal' },
-  { name: 'settings', label: 'Settings', sf: 'gearshape', md: 'settings' },
+  { name: 'scalp', label: 'Scalp', sf: 'bolt', md: 'bolt' },
+  { name: 'trend', label: 'Trend', sf: 'arrow.up.right', md: 'trending_up' },
+  { name: 'range', label: 'Range', sf: 'arrow.up.and.down', md: 'swap_vert' },
+  { name: 'activity', label: 'Activity', sf: 'list.bullet.rectangle', md: 'receipt_long' },
 ] as const;
 
 export default function AppTabs() {

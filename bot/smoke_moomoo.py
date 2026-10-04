@@ -45,6 +45,18 @@ def main() -> int:
     print(f"       positions market filter that worked: {getattr(broker, '_pos_market', 'n/a')}")
     step("last price AAPL", lambda: broker.last_price("AAPL"))
     step("last 5 daily closes AAPL", lambda: broker.history("AAPL", 5))
+    def intraday():
+        from datetime import date, timedelta
+        from .intraday.bars import is_regular
+        bars = broker.intraday_bars("SPY", date.today() - timedelta(days=6), date.today())
+        if not bars:
+            return "NO BARS returned (weekend/holiday range, or history unavailable)"
+        last_day = max(b.ts.date() for b in bars)
+        reg = [b for b in bars if b.ts.date() == last_day and is_regular(b.ts)]
+        pre = [b for b in bars if b.ts.date() == last_day and not is_regular(b.ts)]
+        return (f"{len(bars)} bars, days={sorted({b.ts.date().isoformat() for b in bars})}; {last_day}: {len(reg)} regular "
+                f"(first {reg[0].ts.time() if reg else None}, last {reg[-1].ts.time() if reg else None}), {len(pre)} extended-hours")
+    step("1-minute SPY history (check: first regular bar should read 09:30, last 15:59)", intraday)
     if "--order" in sys.argv:
         o = step("place 1 share AAPL BUY via the adapter (marketable limit, simulated)",
                  lambda: broker.place_order(Order("AAPL", "BUY", 1)))

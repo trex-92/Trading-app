@@ -5,6 +5,7 @@ import { ThemedText, ThemedView } from '@/components/themed';
 import { AuthProvider, useAuth } from '@/features/auth/AuthContext';
 import { BiometricGate } from '@/features/auth/BiometricGate';
 import { BotProvider } from '@/features/bot/BotContext';
+import { StrategiesProvider } from '@/features/strategies/StrategiesContext';
 import { supabaseConfigured } from '@/lib/supabase';
 
 function AuthGate() {
@@ -20,11 +21,12 @@ function AuthGate() {
       </Stack.Protected>
       <Stack.Protected guard={!!session}>
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="settings" />
       </Stack.Protected>
     </Stack>
   );
   // Providers mount only after sign-in so unauthenticated users never open realtime channels.
-  return session ? <BiometricGate><BotProvider>{stack}</BotProvider></BiometricGate> : stack;
+  return session ? <BiometricGate><BotProvider><StrategiesProvider>{stack}</StrategiesProvider></BotProvider></BiometricGate> : stack;
 }
 
 export default function RootLayout() {

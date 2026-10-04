@@ -34,3 +34,6 @@ export const Fonts = Platform.select({
 
 export const Spacing = { one: 4, two: 8, three: 16, four: 24, five: 32 } as const;
 export const MaxContentWidth = 800;
+
+/** On web the tab bar floats over the top of the page; native tabs sit at the bottom. */
+export const WebTopInset = Platform.OS === 'web' ? 72 : 0;

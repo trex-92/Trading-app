@@ -1,8 +1,9 @@
+import { createContext, useContext } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View, type ScrollViewProps } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed';
-import { MaxContentWidth, Spacing, type ThemeColor } from '@/constants/theme';
+import { MaxContentWidth, Spacing, WebTopInset, type ThemeColor } from '@/constants/theme';
 import { useBot } from './BotContext';
 
 export const money = (n: number) =>
@@ -10,13 +11,17 @@ export const money = (n: number) =>
 
 export const signedColor = (n: number): ThemeColor => (n >= 0 ? 'positive' : 'negative');
 
+/** Lets a parent (Activity) draw its own header so child screens skip the safe-area padding. */
+export const ScreenInset = createContext(true);
+
 /** Standard screen: safe-area padding, pull-to-refresh, centered max width. */
 export function Screen({ children, ...rest }: ScrollViewProps) {
   const { refresh } = useBot();
   const insets = useSafeAreaInsets();
+  const withInset = useContext(ScreenInset);
   return (
     <ScrollView
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + Spacing.three }]}
+      contentContainerStyle={[styles.content, { paddingTop: (withInset ? insets.top + WebTopInset : 0) + Spacing.three }]}
       refreshControl={<RefreshControl refreshing={false} onRefresh={refresh} />}
       {...rest}>
       {children}

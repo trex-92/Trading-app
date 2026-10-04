@@ -1,3 +1,4 @@
+import { Link } from 'expo-router';
 import { Alert, Pressable, StyleSheet } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
@@ -33,7 +34,8 @@ export function OverviewScreen() {
 
   return (
     <Screen>
-      <ThemedText type="title">Overview</ThemedText>
+      <Row left={<ThemedText type="title">Overview</ThemedText>}
+        right={<Link href="/settings"><ThemedText themeColor="accent" type="bold">Settings</ThemedText></Link>} />
       <ErrorBanner />
       {!status ? (
         <ThemedText themeColor="textSecondary">

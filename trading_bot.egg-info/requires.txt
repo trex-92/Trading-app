@@ -1,0 +1,13 @@
+httpx>=0.27
+
+[:sys_platform == "win32"]
+tzdata
+
+[dev]
+pytest
+
+[moomoo]
+moomoo-api
+
+[webull]
+webull-openapi-python-sdk

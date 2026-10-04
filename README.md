@@ -33,6 +33,9 @@ supabase/migrations/   schema + RLS + realtime publication
 | Moomoo REST adapter (`BROKER=moomoo_rest`, no OpenD) + OAuth 2.1/PKCE login | written from the docs, 9 tests against a mocked HTTP layer; **never called the live API** |
 | Moomoo OpenD adapter (`BROKER=moomoo`) | written against `moomoo-api`; untested |
 | Webull adapter | skeleton only |
+| Strategies A/B/C, shared risk layer, backtester, worker | 34 new tests on synthetic data; **never run on real prices** |
+| Strategy tabs in the app | rendered and exercised in a browser against a mocked backend; **not against your Supabase** |
+| Live/paper engine for A/B/C | **not built** (see docs/strategies-review.md) |
 
 ## Setup
 1. Create a Supabase project, apply `supabase/migrations/*.sql` (`npx supabase db push` or the SQL editor).
@@ -58,6 +61,14 @@ Bearer token (the docs' curl examples show no auth header).
 
 iOS device build follows the Personal Assistant flow (`npx expo prebuild`, bundle id `com.trex921.trading-monitor`,
 then xcodebuild/devicectl, or `eas build`). Android package: `com.trex921.tradingmonitor`.
+
+## Strategies (A scalp, B trend, C range)
+Tabs: Scalp / Trend / Range, each with a budget (capped at the account balance, enforced in the app and by a database
+trigger), a backtest runner, and a paper-trade journal. Backtests are queued from the app and executed by the bot worker
+(needs `BROKER=moomoo_rest`). Offline: `python -m bot.intraday.cli --strategy ALL --synthetic` or `--csv-dir data`.
+Read `docs/strategies-review.md` first: it lists what the spec could not do on this broker and every assumption made.
+New DB objects: `supabase/migrations/20261005000000_strategies.sql` (apply with `supabase db push`).
+Windows needs the time-zone database: `python -m pip install tzdata` (or `pip install -e .`, which installs it).
 
 ## Notes
 - `web.output` is `single` (SPA): static rendering runs in Node, where AsyncStorage/Supabase auth has no `window`.
