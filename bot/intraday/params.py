@@ -82,6 +82,7 @@ class ScalpParams:  # Strategy A
     time_stop_minutes: int = 25
     flat_before_close_min: int = 5     # ASSUMPTION: spec gives A no end-of-day exit (US 15:55)
     pullback_max_age_bars: int = 10    # ASSUMPTION: spec does not say how long a pullback stays valid
+    levels_include_hod: bool = False   # spec's level list has no HOD; True = also block T1 on a high-of-day in the way
 
 
 @dataclass(frozen=True)

@@ -420,3 +420,9 @@ def test_per_trade_cap_in_a_backtest_keeps_every_position_small():
     t = res.trades[0]
     assert t["shares"] == 5 and t["regime"]["sizing"]["binding"] == "per-trade cap"      # $500 / $100
     assert t["pnl"] == pytest.approx(-5 * 1.0 - 0.02 * 5) and t["r"] == pytest.approx(-1.02)   # R is unchanged by the cap
+
+
+def test_hod_blocking_is_opt_in_and_breakdown_sums():
+    from bot.intraday.params import ScalpParams
+    assert ScalpParams().levels_include_hod is False
+    assert apply_overrides(ScalpParams(), {"levels_include_hod": True}).levels_include_hod is True

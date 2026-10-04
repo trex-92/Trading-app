@@ -131,9 +131,12 @@ class Scalp(Strategy):
             return None
         t1 = entry + p.t1_r * r
         levels = ctx.key_levels(include_hod=True)
-        if any(entry < v < t1 for v in levels.values() if v is not None):
+        blocking = {k: v for k, v in levels.items()
+                    if v is not None and entry < v < t1 and (k != "hod" or p.levels_include_hod)}
+        if blocking:
             self.count("rejected_key_level")
-            return None  # a key level sits between entry and T1
+            self.count(f"rejected_key_level_{min(blocking, key=blocking.get)}")  # the level nearest to entry
+            return None
         above = [v for k, v in levels.items() if k in ("hod", "prior_high") and v is not None and v > t1]
         t2 = min([entry + p.t2_r * r] + above)  # INTERPRETATION: "if nearer" = nearest of HOD / prior-day high beyond T1
         self.count("signals")

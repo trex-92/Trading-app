@@ -156,3 +156,7 @@ Costs in paper trades are the assumed $/share, because the simulator reports no 
 
 **Operating requirement:** all of this runs on the PC that runs the bot. If it sleeps or goes offline, there are no
 trades and no stop protection.
+
+
+## Scalp key-level rule (changed after the first 9-symbol backtest)
+The spec's level list (OR, IB, prior day, pre-market) has no high of day. Earlier I also blocked T1 on HOD; that rejected 11 of 20 triggers in a Sep 2026 test. `levels_include_hod` now defaults to **False** (spec-literal); set it true to restore the stricter behaviour. The funnel now splits `rejected_key_level` by the nearest blocking level. HOD above T1 still shortens T2.
