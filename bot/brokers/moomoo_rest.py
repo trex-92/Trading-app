@@ -9,6 +9,7 @@ the order is marked REJECTED with the confirm_id in its reason so a human decide
 Unverified against the live service (docs only): whether sim-trade endpoints accept the Bearer token,
 and Bearer scopes needed (trade:read/trade:write/quote:read).
 """
+import os
 import time
 from datetime import date
 
@@ -19,6 +20,9 @@ from .base import Broker
 from ..moomoo_oauth import BASE, AuthError, OAuthSession, TokenStore
 
 US_MARKET_ID = 2
+# Simulated US account as actually returned by the service: "美股融资融券模拟账户" with market_id 100
+# (the docs list 2). Override the market sent with orders via MOOMOO_SIM_MARKET if moomoo rejects it.
+US_SIM_MARKET_IDS = (2, 100)
 
 
 class MoomooError(RuntimeError):
@@ -34,6 +38,7 @@ class MoomooRestBroker(Broker):
         self.http = http or httpx.Client(base_url=BASE, timeout=15)
         self.auth = session or OAuthSession(TokenStore())
         self._sleep = sleep
+        self.sim_market = int(os.getenv("MOOMOO_SIM_MARKET", "0")) or US_MARKET_ID
         self.acc_id = acc_id or self._discover_account()
 
     # ---- plumbing -------------------------------------------------------------------------
@@ -74,7 +79,9 @@ class MoomooRestBroker(Broker):
                                   f"(ids: {[a['account_id'] for a in accts]})")
             return str(accts[0]["account_id"])
         accts = (self._call("GET", "/api/v1.0/sim-trade/accounts") or {}).get("accounts", [])
-        us = [a for a in accts if a.get("market_id") == US_MARKET_ID]
+        us = [a for a in accts if a.get("market_id") in US_SIM_MARKET_IDS]
+        if us and not os.getenv("MOOMOO_SIM_MARKET"):
+            self.sim_market = int(us[0]["market_id"])
         if not us:
             raise MoomooError(f"No US simulated account found; accounts returned: {accts}")
         return str(us[0]["account_id"])
@@ -118,7 +125,7 @@ class MoomooRestBroker(Broker):
                     body["price"] = f"{order.price:.4f}"
                 d = self._call("POST", f"/api/v1.0/accounts/{self.acc_id}/orders", json=body)
             else:
-                body = {"market": US_MARKET_ID, "symbol": order.symbol, "order_type": 1 if order.price else 3,
+                body = {"market": self.sim_market, "symbol": order.symbol, "order_type": 1 if order.price else 3,
                         "order_side": 1 if order.side == "BUY" else 2, "qty": str(order.qty)}
                 if order.price:
                     body["price"] = f"{order.price:.4f}"

@@ -141,8 +141,9 @@ def test_429_backs_off_and_error_envelope_becomes_rejected_order(tmp_path):
 
 def test_account_discovery(tmp_path):
     def sim(req):
-        return ok_sim({"accounts": [{"account_id": "1", "market_id": 1}, {"account_id": "2", "market_id": 2}]})
-    assert broker(tmp_path, sim, acc="").acc_id == "2"
+        return ok_sim({"accounts": [{"account_id": "1", "market_id": 1}, {"account_id": "2", "market_id": 100}]})
+    b = broker(tmp_path, sim, acc="")
+    assert b.acc_id == "2" and b.sim_market == 100  # real service labels the US sim account 100
 
     def real(req):
         return ok_trd({"accounts": [{"account_id": 5}, {"account_id": 6}]})
