@@ -318,3 +318,52 @@ def test_today_is_never_cached_because_it_is_still_changing(tmp_path):
     b.intraday_bars("SPY", today, today)
     b.intraday_bars("SPY", today, today)
     assert len(calls) == 2 and not list((tmp_path / "cache").glob("*"))
+
+
+def test_history_requests_are_throttled_but_other_calls_are_not(tmp_path):
+    from datetime import date
+    h, calls = _observed_history_endpoint([date(2026, 9, 2)])
+    clock = {"t": 0.0}
+    sleeps = []
+
+    def sleep(s):
+        sleeps.append(round(s, 1))
+        clock["t"] += s
+
+    b = broker(tmp_path, lambda req: h(req) if req.url.path.endswith("/history-kline") else ok_sim({"balance": "1"}))
+    b._sleep, b._clock, b._hist_limit = sleep, lambda: clock["t"], (3, 30.0)
+    for _ in range(7):
+        b._request("GET", "/api/v1.0/quote/US.SPY/history-kline", params={"start": "2026-09-02", "end": "2026-09-03"})
+    # 3 per 30 s: calls 4-6 wait for the first window to clear, call 7 for the second
+    assert len(sleeps) == 2 and all(abs(x - 30.0) < 0.2 for x in sleeps)
+    sleeps.clear()
+    for _ in range(10):
+        b._request("GET", "/api/v1.0/sim-trade/1/cash-info")   # not a history path: untouched
+    assert sleeps == []
+
+
+def test_a_failed_run_keeps_the_days_it_already_downloaded(tmp_path):
+    from datetime import date
+    from bot.intraday.data import business_days
+    wanted = business_days(date(2026, 9, 1), date(2026, 9, 18))
+    h_ok, calls = _observed_history_endpoint(wanted)
+    n = {"c": 0}
+
+    def flaky(req):
+        n["c"] += 1
+        if n["c"] > 4:                      # the service starts refusing after four pages, forever
+            return httpx.Response(200, json={"ret_code": -9, "ret_msg": "rate limit exceeded"})
+        return h_ok(req)
+
+    b = broker(tmp_path, flaky, cache_dir=tmp_path / "cache")
+    with pytest.raises(Exception, match="rate limit"):
+        b.intraday_bars("SPY", date(2026, 9, 1), date(2026, 9, 18))
+    saved = sorted(p.name for p in (tmp_path / "cache").glob("US_SPY_*.json"))
+    assert len(saved) >= 5                                      # progress was kept
+    n["c"] = -1000                                              # service healthy again
+    before = len(calls)
+    b2 = broker(tmp_path, flaky, cache_dir=tmp_path / "cache")
+    bars = b2.intraday_bars("SPY", date(2026, 9, 1), date(2026, 9, 18))
+    assert sorted({x.ts.date() for x in bars}) == wanted
+    first_resume_start = calls[before][0]
+    assert first_resume_start > date(2026, 9, 1)                # resumed after the saved days, not from the beginning

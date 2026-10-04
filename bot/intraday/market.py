@@ -154,6 +154,9 @@ def explain_error(err: Exception, market: Market) -> str:
     if "permission" in low or "quote right" in low:
         return (f"Your Moomoo account has no real-time {market.name} quote right ({text}). Enable or buy the {market.name} "
                 f"quote subscription in the Moomoo app, then try again.")
+    if "rate limit" in low:
+        return ("Moomoo is limiting how fast history can be downloaded. Wait a minute and run the backtest again: every day already "
+                "downloaded is saved on the bot PC (data/cache), so each retry gets further and a rerun is quick.")
     if "invalid symbol" in low or "invalid_symbol" in low:
         return (f"Moomoo does not recognise that {market.name} symbol ({text}). Use the exact code the Moomoo app shows under "
                 f"the stock name, with the '{market.prefix}' prefix, and check it with: python -m bot.smoke_moomoo --probe {market.prefix}<code>")

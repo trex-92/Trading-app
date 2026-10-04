@@ -418,3 +418,9 @@ def test_basic_info_request(tmp_path):
 
     assert broker(tmp_path, h).basic_info(["MY.1155", "MY.NOPE"]) == [{"code": "MY.1155", "lot_size": 100}]
     assert seen["body"] == {"code_list": ["MY.1155", "MY.NOPE"]}
+
+
+def test_rate_limit_message_tells_the_user_what_to_do():
+    from bot.intraday.market import explain_error
+    msg = explain_error(RuntimeError("rate limit exceeded"), US)
+    assert "Wait a minute" in msg and "saved" in msg
