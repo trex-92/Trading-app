@@ -4,7 +4,7 @@ import threading
 from datetime import date, datetime, timedelta
 
 from .calendar import Calendar
-from .market import get_market
+from .market import explain_error, get_market
 from .runner import NAMES, run_backtest
 
 MAX_DAYS = 90
@@ -62,8 +62,12 @@ class BacktestWorker:
             self.sync.finish_backtest(run["id"], summary, res)
             self.log(f"[backtest] {run['id']} done: {res['stats'].get('n_trades')} trades")
         except Exception as e:  # noqa: BLE001 - report every failure to the app instead of dying
-            self.log(f"[backtest] {run.get('id')} failed: {e}")
-            self.sync.fail_backtest(run["id"], f"{type(e).__name__}: {e}")
+            try:
+                msg = explain_error(e, get_market(str((run.get("params") or {}).get("market") or "US"), self.markets_path))
+            except Exception:  # noqa: BLE001
+                msg = str(e)
+            self.log(f"[backtest] {run.get('id')} failed: {msg}")
+            self.sync.fail_backtest(run["id"], f"{type(e).__name__}: {msg}")
 
     def run_forever(self, stop: threading.Event, interval: float = 5.0) -> None:
         while not stop.is_set():

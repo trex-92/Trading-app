@@ -317,3 +317,71 @@ def test_observed_sessions_detect_the_lunch_break_and_mismatches():
     assert observed_sessions([], MY) == []
     continuous = [Bar(datetime(2026, 9, 2, 9, 0, tzinfo=MY.tz) + timedelta(minutes=i), 1, 1, 1, 1, 1) for i in range(480)]
     assert observed_sessions(continuous, MY) == [("09:00", "16:59")] != configured_runs(MY)   # would be flagged by the smoke test
+
+
+# ---- the smoke script itself (it shipped broken once because nothing ran it) ----------------------------------------
+class StubBroker:
+    acc_id = "1"
+    _pos_market = 100
+
+    def __init__(self, fail_my=None, fail_sg=None):
+        self.fail = {"MY": fail_my, "SG": fail_sg}
+
+    def cash(self): return 1000.0
+    def positions(self): return []
+    def last_price(self, s): return 100.0
+    def history(self, s, n): return [1.0] * n
+
+    def snapshot(self, symbols, market=US):
+        if self.fail.get(market.code):
+            raise RuntimeError(self.fail[market.code])
+        return {symbols[0]: {"last": 5.0, "ts": datetime.now(market.tz), "bid": 0, "ask": 0}}
+
+    def intraday_bars(self, symbol, start, end, market=US, **kw):
+        if self.fail.get(market.code):
+            raise RuntimeError(self.fail[market.code])
+        days = business_days(max(start, end - timedelta(days=4)), end)
+        return [b for d in days for b in synthetic_day(d, "range", 1, 10.0, market)] if days else []
+
+
+def test_smoke_checks_run_end_to_end_and_explain_refusals():
+    from bot.smoke_moomoo import run_checks
+    lines = []
+    run_checks(StubBroker(), out=lines.append)
+    text = "\n".join(lines)
+    assert "[FAIL]" not in text and "matches the configured hours" in text and "regular" in text and "age=" in text
+    lines.clear()
+    run_checks(StubBroker(fail_sg="realtime quote permission required", fail_my="unsupported market"), out=lines.append)
+    text = "\n".join(lines)
+    assert "no real-time Singapore (SGX) quote right" in text and "does not serve Malaysia (Bursa) price data" in text
+    assert "--csv-dir data/my" in text and "[FAIL]" not in text      # a refusal is a finding, not a crash
+
+
+def test_explain_error_passes_other_errors_through():
+    from bot.intraday.market import explain_error
+    assert explain_error(RuntimeError("boom"), MY) == "boom"
+    assert "quote right" in explain_error(RuntimeError("Realtime quote permission required"), SG)
+
+
+def test_live_engine_reports_a_data_problem_once_and_recovers(tmp_path):
+    from test_live import Clock, FakeBroker, FakeSync
+    from test_intraday import Fixed
+    from bot.intraday.live import LiveRunner
+    clock, logs = Clock(), []
+    broker = FakeBroker({"1155": _my_flat_day(D - timedelta(days=1)) + _my_flat_day(D)}, clock)
+    real = broker.intraday_bars
+    broker.intraday_bars = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("unsupported market"))
+    sync = FakeSync()
+    r = LiveRunner(broker, sync, universe=["1155"], configs=lambda: [{"strategy": "A", "enabled": True, "budget": 1_000_000, "params": {}}],
+                   calendar_path=str(tmp_path / "c.json"), state_path=str(tmp_path / "s.json"), journal_path=str(tmp_path / "j.jsonl"),
+                   clock=lambda: clock.now, sleep=lambda s: None, log=logs.append, fill_timeout=0.01, market=MY,
+                   strategy_factory=lambda c, o: [Fixed([], name="A")])
+    clock.now = MY.ts_at(D, 30) + timedelta(minutes=1, seconds=3)
+    for _ in range(5):
+        r.cycle()                                   # repeated cycles must not spam or crash
+    assert sum("data problem" in m for m in logs) == 1
+    assert "does not serve Malaysia" in sync.status[-1]["data_error"]
+    broker.intraday_bars = real
+    clock.now += timedelta(seconds=90)              # past the 60 s back-off
+    r.cycle()
+    assert r.data_error is None and r.day == D and sync.status[-1]["data_error"] is None

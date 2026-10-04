@@ -1,29 +1,87 @@
 """Read-only check of the Moomoo REST adapter against your SIMULATED account.
 
-    python -m bot.smoke_moomoo              # accounts, cash, positions, price, candles (no orders)
+    python -m bot.smoke_moomoo              # accounts, cash, positions, prices, history, SG/MY data (no orders)
     python -m bot.smoke_moomoo --order      # also place ONE 1-share simulated market order (SIMULATE only)
 """
 import json
 import sys
 import time
+from datetime import date, datetime, timedelta
 
 from .brokers.moomoo_rest import MoomooError, MoomooRestBroker
+from .intraday.market import MY, SG, US, configured_runs, explain_error, observed_sessions
 from .models import Order
 from .moomoo_oauth import AuthError, TokenStore
 
 
-def step(name, fn):
+def step(name, fn, out=print):
     try:
-        out = fn()
-        print(f"[ok]   {name}: {out}")
-        return out
+        res = fn()
+        out(f"[ok]   {name}: {res}")
+        return res
     except (MoomooError, AuthError) as e:
-        print(f"[FAIL] {name}: {e}")
+        out(f"[FAIL] {name}: {e}")
         if isinstance(e, MoomooError) and e.extra:
-            print("       raw:", json.dumps(e.extra)[:400])
+            out("       raw: " + json.dumps(e.extra)[:400])
     except Exception as e:  # noqa: BLE001
-        print(f"[FAIL] {name}: {type(e).__name__}: {e}")
+        out(f"[FAIL] {name}: {type(e).__name__}: {e}")
     return None
+
+
+def us_history(broker):
+    bars = broker.intraday_bars("SPY", date.today() - timedelta(days=6), date.today())
+    if not bars:
+        return "NO BARS returned (weekend/holiday range, or history unavailable)"
+    last_day = max(b.ts.date() for b in bars)
+    reg = [b for b in bars if b.ts.date() == last_day and US.is_regular(b.ts)]
+    pre = [b for b in bars if b.ts.date() == last_day and not US.is_regular(b.ts)]
+    return (f"{len(bars)} bars, days={sorted({b.ts.date().isoformat() for b in bars})}; {last_day}: {len(reg)} regular "
+            f"(first {reg[0].ts.time() if reg else None}, last {reg[-1].ts.time() if reg else None}), {len(pre)} extended-hours")
+
+
+def us_quote_age(broker):
+    q = broker.snapshot(["SPY"])["SPY"]
+    age = None if q["ts"] is None else round((datetime.now(US.tz) - q["ts"]).total_seconds(), 1)
+    return (f"last={q['last']} quote_time={q['ts']} age={age}s (the engine treats >{US.stale_seconds:.0f}s during the session "
+            f"as a stale feed; an old time is normal outside trading hours)")
+
+
+def market_probe(broker, market, symbol):
+    """History and quotes are probed separately: they can be refused for different reasons."""
+    lines = []
+    try:
+        bars = broker.intraday_bars(symbol, date.today() - timedelta(days=8), date.today(), market=market)
+        seen, want = observed_sessions(bars, market), configured_runs(market)
+        verdict = "matches the configured hours" if seen == want else f"DIFFERS from configured {want}: fix data/markets.json"
+        lines.append(f"history: {len(bars)} bars over {len({b.ts.date() for b in bars})} days; hours seen {seen} {verdict}")
+    except Exception as e:  # noqa: BLE001
+        lines.append(f"history: UNAVAILABLE. {explain_error(e, market)}")
+    try:
+        q = broker.snapshot([symbol], market=market).get(symbol)
+        lines.append(f"quote: last={q and q['last']} at {q and q['ts']}")
+    except Exception as e:  # noqa: BLE001
+        lines.append(f"quote: UNAVAILABLE. {explain_error(e, market)}")
+    return f"{market.code} {symbol}\n       " + "\n       ".join(lines)
+
+
+def run_checks(broker, order=False, out=print):
+    out(f"       account id: {broker.acc_id}")
+    step("cash", broker.cash, out)
+    step("positions", lambda: [(p.symbol, p.qty, p.avg_price, p.last_price) for p in broker.positions()], out)
+    out(f"       positions market filter that worked: {getattr(broker, '_pos_market', 'n/a')}")
+    step("last price AAPL", lambda: broker.last_price("AAPL"), out)
+    step("last 5 daily closes AAPL", lambda: broker.history("AAPL", 5), out)
+    step("SPY quote freshness", lambda: us_quote_age(broker), out)
+    step("1-minute SPY history (first regular bar should read 09:30, last 15:59)", lambda: us_history(broker), out)
+    step("Singapore (SGX) data", lambda: market_probe(broker, SG, "ES3"), out)
+    step("Malaysia (Bursa) data", lambda: market_probe(broker, MY, "1155"), out)
+    if order:
+        o = step("place 1 share AAPL BUY via the adapter (marketable limit, simulated)",
+                 lambda: broker.place_order(Order("AAPL", "BUY", 1)), out)
+        if o:
+            out(f"       status={o.status} id={o.id} limit_price={o.price} reason={o.reason!r}")
+            time.sleep(2)
+            step("positions after order", lambda: [(p.symbol, p.qty) for p in broker.positions()], out)
 
 
 def main() -> int:
@@ -39,55 +97,7 @@ def main() -> int:
     broker = step("connect + find US simulated account", lambda: MoomooRestBroker("SIMULATE"))
     if not broker:
         return 1
-    print(f"       account id: {broker.acc_id}")
-    step("cash", broker.cash)
-    step("positions", lambda: [(p.symbol, p.qty, p.avg_price, p.last_price) for p in broker.positions()])
-    print(f"       positions market filter that worked: {getattr(broker, '_pos_market', 'n/a')}")
-    step("last price AAPL", lambda: broker.last_price("AAPL"))
-    step("last 5 daily closes AAPL", lambda: broker.history("AAPL", 5))
-    def intraday():
-        from datetime import date, timedelta
-        from .intraday.bars import is_regular
-        bars = broker.intraday_bars("SPY", date.today() - timedelta(days=6), date.today())
-        if not bars:
-            return "NO BARS returned (weekend/holiday range, or history unavailable)"
-        last_day = max(b.ts.date() for b in bars)
-        reg = [b for b in bars if b.ts.date() == last_day and is_regular(b.ts)]
-        pre = [b for b in bars if b.ts.date() == last_day and not is_regular(b.ts)]
-        return (f"{len(bars)} bars, days={sorted({b.ts.date().isoformat() for b in bars})}; {last_day}: {len(reg)} regular "
-                f"(first {reg[0].ts.time() if reg else None}, last {reg[-1].ts.time() if reg else None}), {len(pre)} extended-hours")
-    def quote_age():
-        from datetime import datetime
-        from .intraday.bars import NY
-        q = broker.snapshot(["SPY"])["SPY"]
-        age = None if q["ts"] is None else round((datetime.now(NY) - q["ts"]).total_seconds(), 1)
-        return f"last={q['last']} quote_time={q['ts']} age={age}s (the engine treats >10s during the session as a stale feed)"
-    step("SPY quote freshness", quote_age)
-    step("1-minute SPY history (check: first regular bar should read 09:30, last 15:59)", intraday)
-    def other_markets():
-        from datetime import date, timedelta
-        from .intraday.market import SG, MY, configured_runs, observed_sessions
-        lines = []
-        for market, sym in ((SG, "ES3"), (MY, "1155")):
-            try:
-                bars = broker.intraday_bars(sym, date.today() - timedelta(days=8), date.today(), market=market)
-                q = broker.snapshot([sym], market=market).get(sym)
-            except Exception as e:  # noqa: BLE001
-                lines.append(f"{market.code} {sym}: FAILED ({e})")
-                continue
-            seen, want = observed_sessions(bars, market), configured_runs(market)
-            verdict = "matches the configured hours" if seen == want else f"DIFFERS from configured {want}: fix data/markets.json"
-            lines.append(f"{market.code} {sym}: {len(bars)} bars over {len({b.ts.date() for b in bars})} days; hours seen {seen} {verdict}; "
-                         f"quote={q and q['last']} at {q and q['ts']}")
-        return "\n       ".join(lines)
-    step("SGX / Bursa data (hours and quotes)", other_markets)
-    if "--order" in sys.argv:
-        o = step("place 1 share AAPL BUY via the adapter (marketable limit, simulated)",
-                 lambda: broker.place_order(Order("AAPL", "BUY", 1)))
-        if o:
-            print(f"       status={o.status} id={o.id} limit_price={o.price} reason={o.reason!r}")
-            time.sleep(2)
-            step("positions after order", lambda: [(p.symbol, p.qty) for p in broker.positions()])
+    run_checks(broker, order="--order" in sys.argv)
     broker.close()
     return 0
 

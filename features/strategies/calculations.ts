@@ -138,6 +138,7 @@ export function engineSummary(row: EngineRow | null, now: Date, code: StrategyCo
   const age = (now.getTime() - new Date(row.updated_at).getTime()) / 1000;
   if (age > ENGINE_OFFLINE_AFTER_S) return { text: `Engine offline: last report ${Math.round(age / 60)} min ago.`, level: 'bad' };
   const s = row.state;
+  if (s.data_error) return { text: `Cannot get market data: ${s.data_error}`, level: 'bad' };
   if (s.halt_reason) return { text: `New entries halted: ${s.halt_reason}`, level: 'bad' };
   if (s.session === 'closed') return { text: 'Market closed. The engine is waiting for the next session.', level: 'ok' };
   if (!s.feed_ok) return { text: 'Price feed stale: no new entries, and bot-held stops are not being watched.', level: 'bad' };

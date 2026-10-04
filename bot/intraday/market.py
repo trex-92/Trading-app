@@ -145,3 +145,16 @@ def configured_runs(market: Market) -> list[tuple[str, str]]:
         last = (datetime.combine(date(2000, 1, 1), b) - timedelta(minutes=1)).time()
         out.append((a.strftime("%H:%M"), last.strftime("%H:%M")))
     return out
+
+
+def explain_error(err: Exception, market: Market) -> str:
+    """Turn the two known Moomoo data refusals into advice; anything else passes through unchanged."""
+    text = str(err)
+    low = text.lower()
+    if "permission" in low or "quote right" in low:
+        return (f"Your Moomoo account has no real-time {market.name} quote right ({text}). Enable or buy the {market.name} "
+                f"quote subscription in the Moomoo app, then try again.")
+    if "unsupported market" in low:
+        return (f"Moomoo's API does not serve {market.name} price data for this account ({market.prefix} symbols are 'unsupported'). "
+                f"Backtest with your own 1-minute CSV files: python -m bot.intraday.cli --market {market.code} --csv-dir data/{market.code.lower()}")
+    return text

@@ -103,6 +103,7 @@ describe('engineSummary', () => {
     expect(engineSummary(null, now, 'A').level).toBe('warn');
     expect(engineSummary(row({}, 300), now, 'A')).toMatchObject({ level: 'bad', text: expect.stringMatching(/offline/) });
     expect(engineSummary(row({ halt_reason: 'order rejected' }), now, 'A').level).toBe('bad');
+    expect(engineSummary(row({ data_error: 'unsupported market' }), now, 'A')).toMatchObject({ level: 'bad', text: expect.stringMatching(/Cannot get market data: unsupported market/) });
     expect(engineSummary(row({ session: 'closed' }), now, 'A').text).toMatch(/Market closed/);
     expect(engineSummary(row({ feed_ok: false }), now, 'A').text).toMatch(/stale/);
     expect(engineSummary(row({ blocked_today: 'fomc_day' }), now, 'A').text).toMatch(/fomc day/);

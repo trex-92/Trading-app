@@ -22,7 +22,7 @@ from ..models import Order
 from .bars import NY, Bar
 from .calendar import Calendar
 from .context import DayContext, TickerState
-from .market import US, Market
+from .market import US, Market, explain_error
 from .params import SharedParams
 from .risk import DayRisk, DrawdownGuard, cost_per_share, size_position
 from .runner import base_shared, build
@@ -62,6 +62,8 @@ class LiveRunner:
         self.lock: dict[str, str] = {}
         self.pos: dict | None = None
         self.halt_reason: str | None = None
+        self.data_error: str | None = None
+        self._retry_at: datetime | None = None
         self.feed_ok = True
         self.strategies: list = []
         self.cfg: dict = {}
@@ -110,7 +112,19 @@ class LiveRunner:
             return
         self._refresh_configs(now)
         if self.day != now.date():
-            self._new_day(now)
+            if self._retry_at and now < self._retry_at:
+                self._publish(now, "open")
+                return
+            try:
+                self._new_day(now)
+                self.data_error = None
+            except Exception as e:  # noqa: BLE001 - e.g. no quote right / unsupported market: say so once, retry in a minute
+                msg = explain_error(e, self.market)
+                if msg != self.data_error:
+                    self.log(f"[live] {self.market.code} data problem: {msg}")
+                self.data_error, self.day, self._retry_at = msg, None, now + timedelta(seconds=60)
+                self._publish(now, "open", force=True)
+                return
         prices = self._snapshot(now)
         if prices is not None:
             self._manage_price(now, prices)
@@ -443,7 +457,7 @@ class LiveRunner:
     def status(self, session: str) -> dict:
         p = self.pos
         return {
-            "mode": "paper", "market": self.market.code, "currency": self.market.currency, "session": session,
+            "data_error": self.data_error, "mode": "paper", "market": self.market.code, "currency": self.market.currency, "session": session,
             "simulated_by": "moomoo simulated account" if self.market.sim_account else "the bot (real quotes, simulated fills)", "feed_ok": self.feed_ok, "halt_reason": self.halt_reason,
             "stops": "held by the bot (not at the broker)",
             "risk": {"per_trade_pct": self.guard.risk_pct, "breaker_level": self.guard.level,
@@ -456,8 +470,8 @@ class LiveRunner:
                                "entry": round(p["entry"], 2), "stop": round(p["stop"], 2), "t1": round(p["t1"], 2)},
         }
 
-    def _publish(self, now, session) -> None:
-        if self._pub_at and now - self._pub_at < timedelta(seconds=10):
+    def _publish(self, now, session, force=False) -> None:
+        if not force and self._pub_at and now - self._pub_at < timedelta(seconds=10):
             return
         self._pub_at = now
         try:

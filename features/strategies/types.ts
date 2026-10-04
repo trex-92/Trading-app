@@ -102,6 +102,7 @@ export type EngineState = {
   session: 'open' | 'closed';
   feed_ok: boolean;
   halt_reason: string | null;
+  data_error?: string | null;
   stops: string;
   calendar_configured: boolean;
   blocked_today: string | null;
