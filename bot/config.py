@@ -19,9 +19,10 @@ class Config:
     max_position_qty: int = field(default_factory=lambda: int(os.getenv("MAX_POSITION_QTY", "10")))
     max_orders_per_day: int = field(default_factory=lambda: int(os.getenv("MAX_ORDERS_PER_DAY", "20")))
     max_daily_loss: float = field(default_factory=lambda: float(os.getenv("MAX_DAILY_LOSS", "200")))
-    api_token: str = field(default_factory=lambda: os.getenv("API_TOKEN", ""))
-    api_host: str = field(default_factory=lambda: os.getenv("API_HOST", "0.0.0.0"))
-    api_port: int = field(default_factory=lambda: int(os.getenv("API_PORT", "8000")))
+    command_poll_seconds: int = field(default_factory=lambda: int(os.getenv("COMMAND_POLL_SECONDS", "3")))
+    supabase_url: str = field(default_factory=lambda: os.getenv("SUPABASE_URL", ""))
+    supabase_service_key: str = field(default_factory=lambda: os.getenv("SUPABASE_SERVICE_ROLE_KEY", ""))
+    supabase_user_id: str = field(default_factory=lambda: os.getenv("SUPABASE_USER_ID", ""))
     db_path: str = field(default_factory=lambda: os.getenv("DB_PATH", "trading.db"))
 
     def validate(self) -> None:
@@ -29,5 +30,5 @@ class Config:
             raise SystemExit("TRADE_ENV=REAL requires ALLOW_LIVE=yes")
         if self.sma_fast >= self.sma_slow:
             raise SystemExit("SMA_FAST must be < SMA_SLOW")
-        if not self.api_token or self.api_token == "change-me":
-            raise SystemExit("Set a real API_TOKEN")
+        if not (self.supabase_url and self.supabase_service_key and self.supabase_user_id):
+            raise SystemExit("Set SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY and SUPABASE_USER_ID")

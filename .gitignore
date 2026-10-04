@@ -2,8 +2,19 @@ __pycache__/
 *.pyc
 .venv/
 .env
+bot/.env
 *.db
 .pytest_cache/
 xcuserdata/
 DerivedData/
 .DS_Store
+
+# Node / Expo
+node_modules/
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+ios/
+android/
+*.tsbuildinfo

@@ -43,7 +43,19 @@ class Engine:
                 self.store.add_order(order)
             except Exception as e:  # noqa: BLE001
                 self.store.log("ERROR", f"{sym}: {e}")
-        self.store.set("snapshot", self.snapshot())
+        snap = self.snapshot()
+        self.store.set("snapshot", snap)
+        if self.store.sync:
+            self.store.sync.push_snapshot(snap)
+
+    def apply_commands(self) -> None:
+        sync = self.store.sync
+        if not sync:
+            return
+        for cmd in sync.claim_commands():
+            self.risk.halted = cmd == "halt"
+            self.store.log("WARN" if self.risk.halted else "INFO", f"trading {cmd.upper()} from app")
+            sync.push_snapshot(self.snapshot())
 
     def snapshot(self) -> dict:
         return {
@@ -58,9 +70,13 @@ class Engine:
 
     def run(self) -> None:
         self.store.log("INFO", f"engine started broker={self.cfg.broker} env={self.cfg.trade_env}")
+        next_tick = 0.0
         while not self._stop.is_set():
-            self.tick()
-            self._stop.wait(self.cfg.poll_seconds)
+            self.apply_commands()
+            if time.monotonic() >= next_tick:
+                self.tick()
+                next_tick = time.monotonic() + self.cfg.poll_seconds
+            self._stop.wait(self.cfg.command_poll_seconds)
 
     def stop(self) -> None:
         self._stop.set()

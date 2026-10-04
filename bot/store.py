@@ -8,7 +8,8 @@ from .models import Order, now
 class Store:
     """SQLite log of orders and events; the API reads from here."""
 
-    def __init__(self, path: str):
+    def __init__(self, path: str, sync=None):
+        self.sync = sync  # optional SupabaseSync mirror
         self.db = sqlite3.connect(path, check_same_thread=False)
         self.lock = threading.Lock()
         self.db.executescript("""
@@ -20,6 +21,8 @@ class Store:
     def add_order(self, o: Order):
         with self.lock, self.db:
             self.db.execute("INSERT INTO orders(ts,data) VALUES(?,?)", (o.ts, json.dumps(o.to_dict())))
+        if self.sync:
+            self.sync.push_order(o)
 
     def orders(self, limit=100) -> list[dict]:
         with self.lock:
@@ -34,6 +37,8 @@ class Store:
     def log(self, level: str, msg: str):
         with self.lock, self.db:
             self.db.execute("INSERT INTO events(ts,level,msg) VALUES(?,?,?)", (now(), level, msg))
+        if self.sync:
+            self.sync.push_event(level, msg)
 
     def events(self, limit=100) -> list[dict]:
         with self.lock:

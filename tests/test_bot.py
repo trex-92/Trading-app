@@ -1,6 +1,3 @@
-from fastapi.testclient import TestClient
-
-from bot.api import create_app
 from bot.brokers.paper import PaperBroker
 from bot.config import Config
 from bot.engine import Engine
@@ -11,7 +8,7 @@ from bot.strategy.sma_cross import SmaCross
 
 
 def make(**kw):
-    cfg = Config(symbols=["AAPL"], sma_fast=3, sma_slow=5, api_token="t", db_path=":memory:", **kw)
+    cfg = Config(symbols=["AAPL"], sma_fast=3, sma_slow=5, **kw)
     store, risk = Store(":memory:"), RiskManager(cfg)
     return cfg, Engine(cfg, PaperBroker(seed=1), SmaCross(3, 5), store, risk)
 
@@ -46,11 +43,26 @@ def test_engine_runs_and_respects_halt():
     assert all(o["status"] == "BLOCKED" for o in new)
 
 
-def test_api_auth_and_halt():
-    cfg, eng = make()
-    c = TestClient(create_app(eng, "t"))
-    assert c.get("/status").status_code == 401
-    h = {"Authorization": "Bearer t"}
-    assert c.get("/status", headers=h).json()["halted"] is False
-    c.post("/halt", headers=h)
-    assert eng.risk.halted
+class FakeSync:
+    def __init__(self, cmds):
+        self.cmds, self.snaps, self.orders, self.events = cmds, [], [], []
+
+    def claim_commands(self):
+        out, self.cmds = self.cmds, []
+        return out
+
+    def push_snapshot(self, s): self.snaps.append(s)
+    def push_order(self, o): self.orders.append(o)
+    def push_event(self, level, msg): self.events.append((level, msg))
+
+
+def test_commands_from_app_toggle_halt_and_mirror():
+    _, eng = make()
+    eng.store.sync = FakeSync(["halt"])
+    eng.apply_commands()
+    assert eng.risk.halted and eng.store.sync.snaps[-1]["halted"] is True
+    eng.store.sync.cmds = ["halt", "resume"]
+    eng.apply_commands()
+    assert not eng.risk.halted
+    eng.tick()
+    assert eng.store.sync.snaps  # tick pushes a snapshot too
