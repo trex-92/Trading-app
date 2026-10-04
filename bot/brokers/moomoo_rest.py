@@ -99,57 +99,34 @@ class MoomooRestBroker(Broker):
         rows = sorted(data.get("kline_list", []), key=lambda k: k["time_key"])
         return [float(k["close"]) for k in rows][-bars:]
 
-    def intraday_bars(self, symbol: str, start: date, end: date, market: Market = US, ktype: int = 1, max_pages: int = 120):
-        """1-minute (ktype=1) bars incl. pre/after-market, oldest first, paging backwards from `end`.
-        UNVERIFIED against the live service: the paging contract (next_time passed back as `end`) is from the docs;
-        check coverage in the result's `data` section before trusting a backtest."""
+    # Observed behaviour of /quote/{code}/history-kline (your account, Oct 2026): with `start` given it returns the FIRST
+    # ~1000 bars at/after `start` in ascending order (a full US day with extended hours is ~960 bars), says next_time=None
+    # even when truncated, and treats `end` as exclusive (start == end returns nothing). So history is read forward by
+    # moving `start` to the date of the last bar received; the date always advances because a day has fewer than 1000 bars.
+    HISTORY_PAGE_CAP = 1000
+
+    def intraday_bars(self, symbol: str, start: date, end: date, market: Market = US, ktype: int = 1, max_pages: int = 150):
         from ..intraday.data import bars_from_moomoo
-        rows, seen, cursor = [], set(), end.isoformat()
+        rows, seen, cursor = [], set(), start
         for _ in range(max_pages):
-            params = {"start": start.isoformat(), "end": cursor, "ktype": ktype, "autype": 1, "num": 370}
+            params = {"start": cursor.isoformat(), "end": (end + timedelta(days=1)).isoformat(), "ktype": ktype,
+                      "autype": 1, "num": 370}
             if market.extended_hours:
                 params["extended_time"] = 1   # pre/after-market bars (US only)
             data = self._call("GET", f"/api/v1.0/quote/{self._code(symbol, market)}/history-kline", params=params)
-            page = [k for k in data.get("kline_list", []) if k["time_key"] not in seen]
-            if not page:
+            page = data.get("kline_list", [])
+            new = [k for k in page if k["time_key"] not in seen]
+            seen.update(k["time_key"] for k in new)
+            rows += new
+            if not new or len(page) < self.HISTORY_PAGE_CAP * 0.9:
+                break  # nothing new, or a short page = the end of the data
+            last_day = datetime.fromtimestamp(max(k["time_key"] for k in page) / 1000, tz=market.tz).date()
+            cursor = max(last_day, cursor + timedelta(days=1))   # always move forward
+            if cursor > end:
                 break
-            seen.update(k["time_key"] for k in page)
-            rows += page
-            nxt = data.get("next_time")
-            if not nxt or min(k["time_key"] for k in page) / 1000 <= datetime.combine(
-                    start, datetime.min.time()).timestamp():
-                break
-            cursor = str(nxt)
             self._sleep(0.15)
         bars = bars_from_moomoo(rows, market.tz)
-        bars = [b for b in bars if start <= b.ts.date() <= end]
-        return self._top_up_missing_days(symbol, start, end, market, ktype, bars)
-
-    def _top_up_missing_days(self, symbol, start, end, market, ktype, bars):
-        """Paging sometimes stops early (observed: ~1000 bars = one day). Ask for each missing weekday on its own, newest
-        first, and give up after 3 empty days in a row (history depth reached). Heuristic: verify with the smoke test."""
-        have = {b.ts.astimezone(market.tz).date() for b in bars}
-        got, empty = {}, 0
-        d = end
-        while d >= start and empty < 3:
-            if d.weekday() < 5 and d not in have:
-                params = {"start": d.isoformat(), "end": d.isoformat(), "ktype": ktype, "autype": 1, "num": 370}
-                if market.extended_hours:
-                    params["extended_time"] = 1
-                try:
-                    data = self._call("GET", f"/api/v1.0/quote/{self._code(symbol, market)}/history-kline", params=params)
-                except MoomooError:
-                    data = {}
-                from ..intraday.data import bars_from_moomoo
-                day_bars = [b for b in bars_from_moomoo(data.get("kline_list", []), market.tz) if b.ts.date() == d]
-                if day_bars:
-                    got[d], empty = day_bars, 0
-                else:
-                    empty += 1
-                self._sleep(0.15)
-            d -= timedelta(days=1)
-        extra = [b for day in got.values() for b in day]
-        return sorted(bars + extra, key=lambda b: b.ts)
+        return [b for b in bars if start <= b.ts.astimezone(market.tz).date() <= end]
 
     def basic_info(self, codes: list[str]) -> list[dict]:
         """Static facts (name, board lot, exchange, state) for full codes like 'MY.1155'. Unknown codes are simply absent."""
@@ -175,8 +152,10 @@ class MoomooRestBroker(Broker):
         return out
 
     def recent_bars(self, symbol: str, n: int = 15, market: Market = US):
+        """The newest n bars of TODAY. Reads forward from today's date (a day has fewer than 1000 bars, so it is complete)."""
         from ..intraday.data import bars_from_moomoo
-        params = {"end": datetime.now(market.tz).date().isoformat(), "ktype": 1, "autype": 1, "num": n}
+        today = datetime.now(market.tz).date()
+        params = {"start": today.isoformat(), "end": (today + timedelta(days=1)).isoformat(), "ktype": 1, "autype": 1, "num": 370}
         if market.extended_hours:
             params["extended_time"] = 1
         data = self._call("GET", f"/api/v1.0/quote/{self._code(symbol, market)}/history-kline", params=params)

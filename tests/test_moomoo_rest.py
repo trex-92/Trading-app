@@ -213,30 +213,58 @@ def test_paper_engine_calls_refuse_the_real_account(tmp_path):
             call()
 
 
-def test_history_tops_up_days_the_paging_missed(tmp_path):
-    """Paging returns only the newest day; single-day requests recover the earlier ones; 3 empty days end the search."""
-    from datetime import date
+def _observed_history_endpoint(days_available, cap=1000):
+    """Emulates what the real endpoint did on the user's account: first `cap` bars at/after `start`, ascending,
+    `end` exclusive, next_time always None."""
     from bot.intraday.data import synthetic_day
     from bot.intraday.market import US
-
-    def rows(day):
-        return [{"time_key": int(b.ts.timestamp() * 1000), "open": b.open, "high": b.high, "low": b.low, "close": b.close,
-                 "volume": b.volume} for b in synthetic_day(day, "range", 1, 100.0, US)]
-
-    available = {date(2026, 9, 29), date(2026, 9, 28), date(2026, 9, 25)}  # older than the 25th: not served
+    all_rows = []
+    for d in sorted(days_available):
+        for b in synthetic_day(d, "range", 1, 100.0, US):
+            all_rows.append((b.ts, {"time_key": int(b.ts.timestamp() * 1000), "open": b.open, "high": b.high, "low": b.low,
+                                    "close": b.close, "volume": b.volume}))
     calls = []
 
     def h(req):
-        s, e = req.url.params["start"], req.url.params["end"]
-        calls.append((s, e))
-        if s == e:
-            d = date.fromisoformat(s)
-            return ok_sim({"kline_list": rows(d) if d in available else []})
-        return ok_sim({"kline_list": rows(date(2026, 9, 30)), "next_time": 123})   # the first page, then nothing useful
+        from datetime import date
+        s_, e_ = date.fromisoformat(req.url.params["start"]), date.fromisoformat(req.url.params["end"])
+        calls.append((s_, e_))
+        rows = [r for ts, r in all_rows if s_ <= ts.date() < e_][:cap]
+        return ok_sim({"kline_list": rows, "next_time": None})
 
+    return h, calls
+
+
+def test_history_is_read_forward_in_pages_until_the_whole_range_is_covered(tmp_path):
+    from datetime import date
+    from bot.intraday.data import business_days
+    wanted = business_days(date(2026, 9, 1), date(2026, 9, 30))
+    h, calls = _observed_history_endpoint(wanted)
+    bars = broker(tmp_path, h).intraday_bars("SPY", date(2026, 9, 1), date(2026, 9, 30))
+    assert sorted({b.ts.date() for b in bars}) == wanted          # every trading day, including the last one (end is exclusive)
+    assert len(bars) == len({b.ts for b in bars}) == 390 * len(wanted)   # no duplicates, nothing lost
+    assert all(c[0] < c[1] for c in calls) and [c[0] for c in calls] == sorted(c[0] for c in calls)  # moves forward
+    assert 8 <= len(calls) <= 14                                    # ~1000 bars per call, not one call per bar or per day
+
+
+def test_history_stops_when_the_data_ends_and_handles_empty_ranges(tmp_path):
+    from datetime import date
+    h, calls = _observed_history_endpoint([date(2026, 9, 2)])
     b = broker(tmp_path, h)
-    bars = b.intraday_bars("SPY", date(2026, 9, 1), date(2026, 9, 30))
-    days = sorted({x.ts.date() for x in bars})
-    assert days == [date(2026, 9, 25), date(2026, 9, 28), date(2026, 9, 29), date(2026, 9, 30)]
-    single_day_calls = [c for c in calls if c[0] == c[1]]
-    assert len(single_day_calls) <= 3 + len(available)     # gave up after three empty days instead of asking for all of September
+    assert len(b.intraday_bars("SPY", date(2026, 9, 1), date(2026, 9, 30))) == 390 and len(calls) == 1
+    assert b.intraday_bars("SPY", date(2026, 10, 1), date(2026, 10, 5)) == []
+
+
+def test_recent_bars_reads_todays_bars_forward(tmp_path):
+    from datetime import datetime
+    from bot.intraday.bars import NY
+    seen = {}
+
+    def h(req):
+        seen.update(dict(req.url.params))
+        return ok_sim({"kline_list": [{"time_key": 1790000000000 + 60000 * i, "open": 1, "high": 2, "low": 0.5, "close": 1.5,
+                                       "volume": 10} for i in range(40)]})
+
+    bars = broker(tmp_path, h).recent_bars("SPY", 15)
+    today = datetime.now(NY).date()
+    assert len(bars) == 15 and seen["start"] == today.isoformat() and seen["end"] > seen["start"]

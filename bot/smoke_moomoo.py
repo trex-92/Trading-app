@@ -48,32 +48,25 @@ def us_quote_age(broker):
 
 
 def history_depth(broker):
-    """Shows what the 1-minute history endpoint really does: each page of a 30-day request, then single past days."""
+    """What the 1-minute history endpoint does, and whether our forward paging now covers a month."""
     from .intraday.data import bars_from_moomoo
     today, lines = date.today(), []
 
-    def fetch(start, end):
+    def raw(start, end):
         return broker._call("GET", "/api/v1.0/quote/US.SPY/history-kline", params={
-            "start": start.isoformat(), "end": end, "ktype": 1, "autype": 1, "num": 370, "extended_time": 1})
+            "start": start.isoformat(), "end": end.isoformat(), "ktype": 1, "autype": 1, "num": 370, "extended_time": 1})
 
-    cursor = today.isoformat()
-    for page in range(1, 6):
-        d = fetch(today - timedelta(days=30), cursor)
+    def describe(label, d):
         bars = bars_from_moomoo(d.get("kline_list", []), US.tz)
         span = f"{bars[0].ts:%m-%d %H:%M} to {bars[-1].ts:%m-%d %H:%M}" if bars else "empty"
-        lines.append(f"30-day request, page {page}: {len(bars)} bars ({span}), next_time={d.get('next_time')}")
-        if not bars or not d.get("next_time"):
-            break
-        cursor = str(d["next_time"])
-    day, found = today, 0
-    for back in (3, 8, 15, 25):
-        day = today - timedelta(days=back)
-        while day.weekday() >= 5:
-            day -= timedelta(days=1)
-        bars = bars_from_moomoo(fetch(day, day.isoformat()).get("kline_list", []), US.tz)
-        regular = [b for b in bars if US.is_regular(b.ts)]
-        lines.append(f"single day {day} ({back} days ago): {len(bars)} bars, {len(regular)} regular-session"
-                     + (f", first regular {regular[0].ts:%H:%M}, last {regular[-1].ts:%H:%M}" if regular else ""))
+        lines.append(f"{label}: {len(bars)} bars ({span}), next_time={d.get('next_time')}")
+
+    describe(f"raw request start={today - timedelta(days=30)} end={today}", raw(today - timedelta(days=30), today))
+    describe("raw request with start == end (expected empty if `end` is exclusive)", raw(today - timedelta(days=3), today - timedelta(days=3)))
+    got = broker.intraday_bars("SPY", today - timedelta(days=30), today)
+    days = sorted({b.ts.date() for b in got if US.is_regular(b.ts)})
+    lines.append(f"our paged fetch of the last 30 days: {len(got)} bars, {len(days)} regular-session days"
+                 + (f" ({days[0]} to {days[-1]})" if days else "") + " (about 20 expected for 30 calendar days)")
     return "\n       " + "\n       ".join(lines)
 
 
@@ -118,7 +111,7 @@ def run_checks(broker, order=False, out=print, probes=None):
     step("last 5 daily closes AAPL", lambda: broker.history("AAPL", 5), out)
     step("SPY quote freshness", lambda: us_quote_age(broker), out)
     step("1-minute SPY history (first regular bar should read 09:30, last 15:59)", lambda: us_history(broker), out)
-    step("1-minute history depth (how far back does it go?)", lambda: history_depth(broker), out)
+    step("1-minute history paging (does a month come back?)", lambda: history_depth(broker), out)
     step("Symbol lookup (is the code right, and what is the board lot?)", lambda: symbol_lookup(broker, probes or DEFAULT_PROBES), out)
     step("Singapore (SGX) data", lambda: market_probe(broker, SG, "ES3"), out)
     step("Malaysia (Bursa) data", lambda: market_probe(broker, MY, "1155"), out)
