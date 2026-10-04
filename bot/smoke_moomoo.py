@@ -134,7 +134,7 @@ def main() -> int:
     step("raw simulated accounts", lambda: probe._call("GET", "/api/v1.0/sim-trade/accounts"))
     step("raw authorized real accounts (read-only)", lambda: probe._call("GET", "/api/v1.0/accounts/authorized_trd_accs"))
     print()
-    broker = step("connect + find US simulated account", lambda: MoomooRestBroker("SIMULATE"))
+    broker = step("connect + find US simulated account", lambda: MoomooRestBroker("SIMULATE", cache_dir="data/cache"))
     if not broker:
         return 1
     probes = sys.argv[sys.argv.index("--probe") + 1:] if "--probe" in sys.argv else None

@@ -18,10 +18,11 @@ def store(tmp_path, **over):
     return s
 
 
-def broker(tmp_path, handler, env="SIMULATE", acc="1", **store_over):
+def broker(tmp_path, handler, env="SIMULATE", acc="1", cache_dir=None, now=None, **store_over):
     http = httpx.Client(base_url="https://webapi.moomoo.com", transport=httpx.MockTransport(handler))
     sess = OAuthSession(store(tmp_path, **store_over), httpx.Client(transport=httpx.MockTransport(handler)))
-    return MoomooRestBroker(env, acc, sess, http, sleep=lambda s: None)
+    return MoomooRestBroker(env, acc, sess, http, sleep=lambda s: None, cache_dir=cache_dir,
+                           **({'now': now} if now else {}))
 
 
 def ok_sim(data):
@@ -268,3 +269,52 @@ def test_recent_bars_reads_todays_bars_forward(tmp_path):
     bars = broker(tmp_path, h).recent_bars("SPY", 15)
     today = datetime.now(NY).date()
     assert len(bars) == 15 and seen["start"] == today.isoformat() and seen["end"] > seen["start"]
+
+
+def test_rate_limit_replies_are_retried_with_backoff(tmp_path):
+    sleeps, n = [], {"c": 0}
+
+    def h(req):
+        n["c"] += 1
+        if n["c"] <= 2:
+            return httpx.Response(200, json={"ret_code": -9, "ret_msg": "rate limit exceeded"})
+        return ok_sim({"balance": "5"})
+
+    b = broker(tmp_path, h)
+    b._sleep = sleeps.append
+    assert b.cash() == 5.0 and sleeps == [2, 4]                      # waited 2s then 4s
+    n["c"] = -100                                                     # never recovers: gives up after the last wait
+    with pytest.raises(Exception, match="rate limit"):
+        b.cash()
+    assert sleeps[2:] == [2, 4, 8, 16, 32]
+
+
+def test_finished_days_are_cached_so_reruns_do_not_hit_the_api(tmp_path):
+    from datetime import date, datetime, timedelta
+    from bot.intraday.bars import NY
+    from bot.intraday.data import business_days
+    wanted = [d for d in business_days(date(2026, 9, 1), date(2026, 9, 30)) if d != date(2026, 9, 7)]   # Sep 7 = holiday, no bars
+    h, calls = _observed_history_endpoint(wanted)
+    b = broker(tmp_path, h, cache_dir=tmp_path / "cache")
+    first = b.intraday_bars("SPY", date(2026, 9, 1), date(2026, 9, 30))
+    n1 = len(calls)
+    assert sorted({x.ts.date() for x in first}) == wanted and n1 >= 8
+    again = b.intraday_bars("SPY", date(2026, 9, 1), date(2026, 9, 30))
+    assert len(calls) == n1 and [x.ts for x in again] == [x.ts for x in first]          # second run: zero requests
+    assert (tmp_path / "cache" / "US_SPY_2026-09-07.json").read_text() == "[]"           # the holiday is remembered as empty
+    # a longer range only fetches the new tail
+    h2, calls2 = _observed_history_endpoint(wanted + [date(2026, 10, 1)])
+    b2 = broker(tmp_path, h2, cache_dir=tmp_path / "cache")
+    longer = b2.intraday_bars("SPY", date(2026, 9, 1), date(2026, 10, 1))
+    assert len(calls2) == 1 and calls2[0][0] == date(2026, 10, 1) and date(2026, 10, 1) in {x.ts.date() for x in longer}
+
+
+def test_today_is_never_cached_because_it_is_still_changing(tmp_path):
+    from datetime import date, datetime
+    from bot.intraday.bars import NY
+    today = date(2026, 9, 30)
+    h, calls = _observed_history_endpoint([today])
+    b = broker(tmp_path, h, cache_dir=tmp_path / "cache", now=lambda tz: datetime(2026, 9, 30, 11, 0, tzinfo=NY))
+    b.intraday_bars("SPY", today, today)
+    b.intraday_bars("SPY", today, today)
+    assert len(calls) == 2 and not list((tmp_path / "cache").glob("*"))

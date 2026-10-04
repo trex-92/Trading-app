@@ -9,8 +9,10 @@ the order is marked REJECTED with the confirm_id in its reason so a human decide
 Unverified against the live service (docs only): whether sim-trade endpoints accept the Bearer token,
 and Bearer scopes needed (trade:read/trade:write/quote:read).
 """
+import json
 import os
 import time
+from pathlib import Path
 from datetime import date, datetime, timedelta
 
 import httpx
@@ -35,16 +37,31 @@ class MoomooError(RuntimeError):
 
 class MoomooRestBroker(Broker):
     def __init__(self, trade_env: str = "SIMULATE", acc_id: str = "", session: OAuthSession | None = None,
-                 http: httpx.Client | None = None, sleep=time.sleep):
+                 http: httpx.Client | None = None, sleep=time.sleep, cache_dir: str | None = None, now=datetime.now):
         self.real = trade_env == "REAL"
         self.http = http or httpx.Client(base_url=BASE, timeout=15)
         self.auth = session or OAuthSession(TokenStore())
         self._sleep = sleep
+        self._now = now   # callable(tz) -> aware datetime; injectable for tests
+        self.cache_dir = Path(cache_dir) if cache_dir else None
         self.sim_market = int(os.getenv("MOOMOO_SIM_MARKET") or 0) or US_MARKET_ID
         self.acc_id = acc_id or self._discover_account()
 
     # ---- plumbing -------------------------------------------------------------------------
+    RATE_LIMIT_WAITS = (2, 4, 8, 16, 32)   # seconds; Moomoo publishes no numbers, only "back off exponentially"
+
     def _call(self, method: str, path: str, **kw):
+        """Like _request, but a 'rate limit exceeded' answer (which arrives as a normal reply, not HTTP 429) is retried
+        with exponential backoff before giving up."""
+        for wait in (*self.RATE_LIMIT_WAITS, None):
+            try:
+                return self._request(method, path, **kw)
+            except MoomooError as e:
+                if "rate limit" not in str(e).lower() or wait is None:
+                    raise
+                self._sleep(wait)
+
+    def _request(self, method: str, path: str, **kw):
         """HTTP with bearer auth, one refresh-and-retry on 401, backoff on 429. Returns unwrapped payload."""
         force = False
         for attempt in range(4):
@@ -105,9 +122,54 @@ class MoomooRestBroker(Broker):
     # moving `start` to the date of the last bar received; the date always advances because a day has fewer than 1000 bars.
     HISTORY_PAGE_CAP = 1000
 
+    # ---- completed days are cached on disk: each page is ~1 day and the API rate-limits, so never refetch a finished day ----
+    def _cache_file(self, market: Market, symbol: str, day: date):
+        return self.cache_dir / f"{market.code}_{symbol}_{day.isoformat()}.json"
+
+    def _cache_read(self, market, symbol, day):
+        try:
+            return json.loads(self._cache_file(market, symbol, day).read_text())
+        except (FileNotFoundError, ValueError, TypeError):
+            return None
+
+    def _cache_write(self, market, symbol, day, rows):
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        tmp = self._cache_file(market, symbol, day).with_suffix(".tmp")
+        tmp.write_text(json.dumps(rows))
+        os.replace(tmp, self._cache_file(market, symbol, day))
+
     def intraday_bars(self, symbol: str, start: date, end: date, market: Market = US, ktype: int = 1, max_pages: int = 150):
         from ..intraday.data import bars_from_moomoo
-        rows, seen, cursor = [], set(), start
+        today = self._now(market.tz).date()
+        weekdays = [start + timedelta(days=i) for i in range((end - start).days + 1) if (start + timedelta(days=i)).weekday() < 5]
+        rows, missing = [], []
+        for d in weekdays:
+            cached = self._cache_read(market, symbol, d) if (self.cache_dir and ktype == 1 and d < today) else None
+            if cached is None:
+                missing.append(d)
+            else:
+                rows += cached   # an empty list is a confirmed no-data day (holiday)
+        if missing:
+            fetched, complete_until = self._fetch_forward(symbol, min(missing), end, market, ktype, max_pages)
+            rows += fetched
+            if self.cache_dir and ktype == 1:
+                by_day: dict = {}
+                for k in fetched:
+                    by_day.setdefault(datetime.fromtimestamp(k["time_key"] / 1000, tz=market.tz).date(), []).append(k)
+                for d in missing:
+                    if d < today and d <= complete_until:
+                        self._cache_write(market, symbol, d, by_day.get(d, []))
+        seen, unique = set(), []
+        for k in rows:
+            if k["time_key"] not in seen:
+                seen.add(k["time_key"])
+                unique.append(k)
+        return [b for b in bars_from_moomoo(unique, market.tz) if start <= b.ts.astimezone(market.tz).date() <= end]
+
+    def _fetch_forward(self, symbol, start, end, market, ktype, max_pages):
+        """Read forward from `start`. Returns (rows, complete_until): every day up to complete_until is fully covered
+        (the last day of a truncated page may be partial, so it is excluded)."""
+        rows, seen, cursor, complete_until = [], set(), start, start - timedelta(days=1)
         for _ in range(max_pages):
             params = {"start": cursor.isoformat(), "end": (end + timedelta(days=1)).isoformat(), "ktype": ktype,
                       "autype": 1, "num": 370}
@@ -119,14 +181,14 @@ class MoomooRestBroker(Broker):
             seen.update(k["time_key"] for k in new)
             rows += new
             if not new or len(page) < self.HISTORY_PAGE_CAP * 0.9:
-                break  # nothing new, or a short page = the end of the data
+                return rows, end            # short page: the data ended, everything up to `end` is settled
             last_day = datetime.fromtimestamp(max(k["time_key"] for k in page) / 1000, tz=market.tz).date()
+            complete_until = last_day - timedelta(days=1)
             cursor = max(last_day, cursor + timedelta(days=1))   # always move forward
             if cursor > end:
-                break
-            self._sleep(0.15)
-        bars = bars_from_moomoo(rows, market.tz)
-        return [b for b in bars if start <= b.ts.astimezone(market.tz).date() <= end]
+                return rows, complete_until
+            self._sleep(0.5)                # be gentle: the API rate-limits bursts
+        return rows, complete_until
 
     def basic_info(self, codes: list[str]) -> list[dict]:
         """Static facts (name, board lot, exchange, state) for full codes like 'MY.1155'. Unknown codes are simply absent."""
@@ -154,7 +216,7 @@ class MoomooRestBroker(Broker):
     def recent_bars(self, symbol: str, n: int = 15, market: Market = US):
         """The newest n bars of TODAY. Reads forward from today's date (a day has fewer than 1000 bars, so it is complete)."""
         from ..intraday.data import bars_from_moomoo
-        today = datetime.now(market.tz).date()
+        today = self._now(market.tz).date()
         params = {"start": today.isoformat(), "end": (today + timedelta(days=1)).isoformat(), "ktype": 1, "autype": 1, "num": 370}
         if market.extended_hours:
             params["extended_time"] = 1

@@ -14,7 +14,7 @@ def make_broker(cfg: Config) -> Broker:
     if cfg.broker == "moomoo_rest":
         import os
         from .moomoo_rest import MoomooRestBroker
-        return MoomooRestBroker(cfg.trade_env, os.getenv("MOOMOO_ACC_ID", ""))
+        return MoomooRestBroker(cfg.trade_env, os.getenv("MOOMOO_ACC_ID", ""), cache_dir=os.getenv("HISTORY_CACHE_DIR", "data/cache"))
     if cfg.broker == "webull":
         from .webull import WebullBroker
         return WebullBroker()
