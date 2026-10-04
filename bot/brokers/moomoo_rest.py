@@ -133,19 +133,25 @@ class MoomooRestBroker(Broker):
             return float(self._call("GET", f"/api/v1.0/accounts/{self.acc_id}/funds", params={"currency": "USD"})["cash"])
         return float(self._call("GET", f"/api/v1.0/sim-trade/{self.acc_id}/cash-info")["balance"])
 
+    def _limit_price(self, order: Order) -> float:
+        """The sim endpoint rejects plain market orders (observed), so every order goes out as a marketable
+        limit: LIMIT_BUFFER_PCT beyond the last price. Behaves like a market order with a slippage cap."""
+        if order.price:
+            return order.price
+        buf = float(os.getenv("MOOMOO_LIMIT_BUFFER_PCT", "1")) / 100
+        px = self.last_price(order.symbol)
+        return round(px * (1 + buf if order.side == "BUY" else 1 - buf), 2)
+
     def place_order(self, order):
         try:
+            price = self._limit_price(order)
             if self.real:
                 body = {"code": self._code(order.symbol), "qty": str(order.qty), "side": order.side,
-                        "order_type": "LIMIT" if order.price else "MARKET", "time_in_force": "DAY", "session": "RTH"}
-                if order.price:
-                    body["price"] = f"{order.price:.4f}"
+                        "order_type": "LIMIT", "price": f"{price:.4f}", "time_in_force": "DAY", "session": "RTH"}
                 d = self._call("POST", f"/api/v1.0/accounts/{self.acc_id}/orders", json=body)
             else:
-                body = {"market": self.sim_market, "symbol": order.symbol, "order_type": 1 if order.price else 3,
-                        "order_side": 1 if order.side == "BUY" else 2, "qty": str(order.qty)}
-                if order.price:
-                    body["price"] = f"{order.price:.4f}"
+                body = {"market": self.sim_market, "symbol": order.symbol, "order_type": 1,
+                        "order_side": 1 if order.side == "BUY" else 2, "qty": str(order.qty), "price": f"{price:.2f}"}
                 d = self._call("POST", f"/api/v1.0/sim-trade/{self.acc_id}/orders", json=body)
         except MoomooError as e:
             order.status = "REJECTED"
@@ -155,7 +161,7 @@ class MoomooRestBroker(Broker):
             else:
                 order.reason = f"{e.code}: {e}"
             return order
-        order.id, order.status = str(d["order_id"]), "SUBMITTED"
+        order.id, order.status, order.price = str(d["order_id"]), "SUBMITTED", price
         return order
 
     def close(self):

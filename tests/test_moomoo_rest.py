@@ -92,7 +92,9 @@ def test_sim_reads_and_order_body(tmp_path):
     assert len(pos) == 1 and pos[0].symbol == "AAPL" and pos[0].qty == 3
     o = b.place_order(Order("AAPL", "SELL", 2))
     assert (o.status, o.id) == ("SUBMITTED", "77")
-    assert seen == {"market": 2, "symbol": "AAPL", "order_type": 3, "order_side": 2, "qty": "2"}
+    # marketable limit: 1% below the 12.5 last price for a sell; plain market orders are rejected by the sim
+    assert seen == {"market": 2, "symbol": "AAPL", "order_type": 1, "order_side": 2, "qty": "2", "price": "12.38"}
+    assert o.price == 12.38
 
 
 def test_real_order_body_and_confirmation_is_not_auto_confirmed(tmp_path):
@@ -101,13 +103,15 @@ def test_real_order_body_and_confirmation_is_not_auto_confirmed(tmp_path):
     def h(req):
         if req.url.path.endswith("/order_confirm"):
             raise AssertionError("must never auto-confirm")
+        if req.url.path.endswith("/snapshot"):
+            return ok_sim({"snapshot_list": [{"last_price": 100.0}]})
         bodies.append(json.loads(req.content))
         return httpx.Response(200, json={"s": "error", "errcode": -2100, "errmsg": "Order confirmation required.",
                                          "need_order_confirm": True, "confirm_id": "abc"})
 
     b = broker(tmp_path, h, env="REAL", acc="9")
     o = b.place_order(Order("AAPL", "BUY", 1))
-    assert bodies[0] == {"code": "US.AAPL", "qty": "1", "side": "BUY", "order_type": "MARKET",
+    assert bodies[0] == {"code": "US.AAPL", "qty": "1", "side": "BUY", "order_type": "LIMIT", "price": "101.0000",
                          "time_in_force": "DAY", "session": "RTH"}
     assert o.status == "REJECTED" and "abc" in o.reason
 
@@ -130,6 +134,8 @@ def test_429_backs_off_and_error_envelope_becomes_rejected_order(tmp_path):
     n = {"c": 0}
 
     def h(req):
+        if req.url.path.endswith("/snapshot"):
+            return ok_sim({"snapshot_list": [{"last_price": 10.0}]})
         n["c"] += 1
         if n["c"] == 1:
             return httpx.Response(429, headers={"Retry-After": "1"}, json={})

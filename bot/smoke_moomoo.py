@@ -46,24 +46,12 @@ def main() -> int:
     step("last price AAPL", lambda: broker.last_price("AAPL"))
     step("last 5 daily closes AAPL", lambda: broker.history("AAPL", 5))
     if "--order" in sys.argv:
-        px = broker.last_price("AAPL")
-        limit = f"{px * 1.01:.2f}"  # limit slightly above market: the docs say these fill immediately
-        tried = set()
-        for market in (broker.sim_market, 2):
-            for kind, extra in (("MARKET", {"order_type": 3}), ("LIMIT", {"order_type": 1, "price": limit})):
-                if (market, kind) in tried:
-                    continue
-                tried.add((market, kind))
-                body = {"market": market, "symbol": "AAPL", "order_side": 1, "qty": "1", **extra}
-                r = step(f"sim order market={market} {kind}", lambda: broker._call(
-                    "POST", f"/api/v1.0/sim-trade/{broker.acc_id}/orders", json=body))
-                if r:
-                    print(f"       ACCEPTED with market={market} type={kind}: {r}")
-                    time.sleep(2)
-                    step("positions after order", lambda: [(p.symbol, p.qty) for p in broker.positions()])
-                    broker.close()
-                    return 0
-        print("       No variant accepted. Paste this whole output.")
+        o = step("place 1 share AAPL BUY via the adapter (marketable limit, simulated)",
+                 lambda: broker.place_order(Order("AAPL", "BUY", 1)))
+        if o:
+            print(f"       status={o.status} id={o.id} limit_price={o.price} reason={o.reason!r}")
+            time.sleep(2)
+            step("positions after order", lambda: [(p.symbol, p.qty) for p in broker.positions()])
     broker.close()
     return 0
 
