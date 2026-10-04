@@ -1,5 +1,22 @@
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
+
+
+def load_dotenv(*paths: Path) -> None:
+    """Minimal .env loader (KEY=VALUE, '#' comments). Real environment variables win over the file."""
+    for path in paths:
+        if not path.is_file():
+            continue
+        for raw in path.read_text(encoding="utf-8-sig").splitlines():
+            line = raw.split(" #", 1)[0].strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
+load_dotenv(Path.cwd() / "bot" / ".env", Path(__file__).with_name(".env"))
 
 
 def _list(name: str, default: str) -> list[str]:
