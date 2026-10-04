@@ -28,3 +28,4 @@ data/paper_*.json
 data/live_state_*.json
 data/journal_*.jsonl
 data/cache/
+data/research/

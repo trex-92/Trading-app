@@ -1,0 +1,223 @@
+formula file sha256 b991829204e5a728…   14 formulas
+LOCKED FINAL PERIOD 2026-08-03 -> 2026-10-02
+
+=== GF-core: GF {"g_min": 1.0, "g_max": 4.0, "t_start": 60, "t_end": 135, "confirm": "none", "stop": "lod", "atr_k": 2.0, "target": "fill_all", "a": 0.5, "t1_r": 1.5, "t2_r": 2.5, "rr_min": 0.0, "flat": 240, "ts_min": null, "exit_mode": null} filters=[]
+   design, 9 main symbols (tuned here) n= 122 win= 47.5% ret/trade=+0.191% [+0.030,+0.359] avgR=+0.403 PF=1.98 t=+2.21
+   design dates, hold-out symbols     n=  20 win= 30.0% ret/trade=-0.066% [-0.365,+0.294] avgR=+0.646 PF=1.95 t=-0.38
+   FINAL period, all 11 symbols       n=  35 win= 51.4% ret/trade=+0.252% [-0.001,+0.518] avgR=+0.317 PF=1.87 t=+1.92
+   FINAL period, 9 main symbols       n=  29 win= 51.7% ret/trade=+0.300% [-0.007,+0.627] avgR=+0.415 PF=2.24 t=+2.04
+   FINAL period, hold-out symbols     n=   6 win= 50.0% ret/trade=+0.020% [-0.349,+0.425] avgR=-0.155 PF=0.69 t=+0.10
+   engine, mean of 30 orderings: trades 20 | win 48.7% | avg R +0.186 | PF 1.51 | return +4.24% (orderings +0.31..+8.84)
+   neighbourhood on the FINAL period (one grid step away):
+      t_start 60 -> 50             n= 32 win= 37.5% ret/trade=+0.153%
+      t_start 60 -> 70             n= 30 win= 40.0% ret/trade=+0.071%
+      g_min 1.0 -> 0.75            n= 50 win= 58.0% ret/trade=+0.214%
+      g_min 1.0 -> 1.25            n= 24 win= 58.3% ret/trade=+0.283%
+      atr_k 2.0 -> 1.5             n= 35 win= 51.4% ret/trade=+0.252%
+      atr_k 2.0 -> 2.5             n= 35 win= 51.4% ret/trade=+0.252%
+      t1_r 1.5 -> 1.0              n= 35 win= 51.4% ret/trade=+0.252%
+      t1_r 1.5 -> 2.0              n= 35 win= 51.4% ret/trade=+0.252%
+
+=== GF-E: GF {"g_min": 1.0, "g_max": 4.0, "t_start": 60, "t_end": 135, "confirm": "none", "stop": "lod", "atr_k": 2.0, "target": "fill_all", "a": 0.5, "t1_r": 1.5, "t2_r": 2.5, "rr_min": 0.0, "flat": 240, "ts_min": null, "exit_mode": null} filters=['far_20d_high', 'volatile_stock', 'ema_down']
+   design, 9 main symbols (tuned here) n=  60 win= 53.3% ret/trade=+0.387% [+0.146,+0.634] avgR=+0.465 PF=2.11 t=+3.16
+   design dates, hold-out symbols     n=  10 win= 30.0% ret/trade=+0.099% [-0.424,+0.726] avgR=+1.737 PF=3.59 t=+0.34
+   FINAL period, all 11 symbols       n=   9 win= 33.3% ret/trade=+0.334% [-0.313,+1.039] avgR=+0.243 PF=1.49 t=+0.94
+   FINAL period, 9 main symbols       n=   7 win= 42.9% ret/trade=+0.564% [-0.190,+1.473] avgR=+0.599 PF=2.72 t=+1.35
+   FINAL period, hold-out symbols     n=   2 win=  0.0% ret/trade=-0.470% [-0.470,-0.470] avgR=-1.002 PF=0.00 t=-3.30
+   engine, mean of 30 orderings: trades 9 | win 33.3% | avg R +0.243 | PF 1.49 | return +2.98% (orderings +2.98..+2.98)
+   neighbourhood on the FINAL period (one grid step away):
+      t_start 60 -> 50             n=  8 win= 37.5% ret/trade=+0.375%
+      t_start 60 -> 70             n=  6 win= 16.7% ret/trade=-0.078%
+      g_min 1.0 -> 0.75            n=  9 win= 33.3% ret/trade=+0.334%
+      g_min 1.0 -> 1.25            n=  8 win= 37.5% ret/trade=+0.461%
+      atr_k 2.0 -> 1.5             n=  9 win= 33.3% ret/trade=+0.334%
+      atr_k 2.0 -> 2.5             n=  9 win= 33.3% ret/trade=+0.334%
+      t1_r 1.5 -> 1.0              n=  9 win= 33.3% ret/trade=+0.334%
+      t1_r 1.5 -> 2.0              n=  9 win= 33.3% ret/trade=+0.334%
+
+=== GF-W: GF {"g_min": 1.0, "g_max": 4.0, "t_start": 60, "t_end": 135, "confirm": "none", "stop": "atr", "atr_k": 2.5, "target": "fill_split", "a": 0.5, "t1_r": 1.5, "t2_r": 2.5, "rr_min": 0.0, "flat": 240, "ts_min": null, "exit_mode": null} filters=[]
+   design, 9 main symbols (tuned here) n= 125 win= 60.8% ret/trade=+0.145% [-0.031,+0.313] avgR=+0.145 PF=1.50 t=+1.63
+   design dates, hold-out symbols     n=  21 win= 38.1% ret/trade=-0.257% [-0.609,+0.141] avgR=-0.268 PF=0.53 t=-1.36
+   FINAL period, all 11 symbols       n=  35 win= 71.4% ret/trade=+0.237% [+0.083,+0.434] avgR=+0.248 PF=2.83 t=+2.71
+   FINAL period, 9 main symbols       n=  28 win= 67.9% ret/trade=+0.198% [+0.004,+0.433] avgR=+0.210 PF=2.26 t=+1.92
+   FINAL period, hold-out symbols     n=   7 win= 85.7% ret/trade=+0.391% [+0.160,+0.643] avgR=+0.398 PF=40.69 t=+3.17
+   engine, mean of 30 orderings: trades 19 | win 68.9% | avg R +0.252 | PF 3.23 | return +4.67% (orderings +3.60..+6.71)
+   neighbourhood on the FINAL period (one grid step away):
+      t_start 60 -> 50             n= 35 win= 68.6% ret/trade=+0.096%
+      t_start 60 -> 70             n= 33 win= 63.6% ret/trade=+0.188%
+      g_min 1.0 -> 0.75            n= 50 win= 72.0% ret/trade=+0.170%
+      g_min 1.0 -> 1.25            n= 26 win= 76.9% ret/trade=+0.300%
+      atr_k 2.5 -> 2.0             n= 37 win= 64.9% ret/trade=+0.202%
+      atr_k 2.5 -> 3.0             n= 32 win= 68.8% ret/trade=+0.184%
+      t1_r 1.5 -> 1.0              n= 35 win= 71.4% ret/trade=+0.237%
+      t1_r 1.5 -> 2.0              n= 35 win= 71.4% ret/trade=+0.237%
+
+=== GG-core: GG {"g_min": 0.5, "g_max": 99.0, "pm_ratio_min": 0.0, "trigger": "orh15", "t_start": 5, "t_end": 60, "stop": "vwap", "atr_k": 2.0, "t1_r": 1.0, "t2_r": 0, "frac": 0.5, "flat": 240, "ts_min": null, "exit_mode": "vwap"} filters=[]
+   design, 9 main symbols (tuned here) n= 148 win= 59.5% ret/trade=+0.203% [+0.083,+0.332] avgR=+0.268 PF=1.85 t=+3.30
+   design dates, hold-out symbols     n=  29 win= 37.9% ret/trade=-0.081% [-0.304,+0.148] avgR=-0.109 PF=0.75 t=-0.72
+   FINAL period, all 11 symbols       n=  53 win= 39.6% ret/trade=-0.030% [-0.237,+0.175] avgR=+0.110 PF=1.26 t=-0.29
+   FINAL period, 9 main symbols       n=  46 win= 37.0% ret/trade=-0.073% [-0.248,+0.134] avgR=+0.097 PF=1.22 t=-0.76
+   FINAL period, hold-out symbols     n=   7 win= 57.1% ret/trade=+0.253% [-0.421,+1.103] avgR=+0.200 PF=1.54 t=+0.64
+   engine, mean of 30 orderings: trades 34 | win 46.4% | avg R +0.336 | PF 1.88 | return +1.59% (orderings +1.15..+2.08)
+   neighbourhood on the FINAL period (one grid step away):
+      t_start 5 -> 15              n= 53 win= 39.6% ret/trade=-0.030%
+      g_min 0.5 -> 0.25            n= 76 win= 40.8% ret/trade=-0.036%
+      g_min 0.5 -> 0.75            n= 39 win= 30.8% ret/trade=-0.136%
+      atr_k 2.0 -> 1.5             n= 53 win= 39.6% ret/trade=-0.030%
+      atr_k 2.0 -> 2.5             n= 53 win= 39.6% ret/trade=-0.030%
+      t1_r 1.0 -> 0.5              n= 53 win= 54.7% ret/trade=-0.051%
+      t1_r 1.0 -> 1.5              n= 53 win= 26.4% ret/trade=-0.062%
+
+=== GG-E: GG {"g_min": 0.5, "g_max": 99.0, "pm_ratio_min": 0.0, "trigger": "orh15", "t_start": 5, "t_end": 60, "stop": "vwap", "atr_k": 2.0, "t1_r": 1.0, "t2_r": 0, "frac": 0.5, "flat": 240, "ts_min": null, "exit_mode": "vwap"} filters=['rvol_ge1']
+   design, 9 main symbols (tuned here) n=  75 win= 61.3% ret/trade=+0.276% [+0.130,+0.429] avgR=+0.309 PF=2.09 t=+3.39
+   design dates, hold-out symbols     n=  14 win= 21.4% ret/trade=-0.337% [-0.562,-0.057] avgR=-0.432 PF=0.22 t=-2.64
+   FINAL period, all 11 symbols       n=  26 win= 38.5% ret/trade=-0.036% [-0.330,+0.298] avgR=+0.165 PF=1.39 t=-0.22
+   FINAL period, 9 main symbols       n=  23 win= 30.4% ret/trade=-0.159% [-0.434,+0.173] avgR=+0.055 PF=1.12 t=-1.04
+   FINAL period, hold-out symbols     n=   3 win=100.0% ret/trade=+0.905% [+0.905,+0.905] avgR=+1.003 PF=9.99 t=+1.99
+   engine, mean of 30 orderings: trades 18 | win 38.9% | avg R +0.293 | PF 1.72 | return -0.91% (orderings -1.13..-0.62)
+   neighbourhood on the FINAL period (one grid step away):
+      t_start 5 -> 15              n= 26 win= 38.5% ret/trade=-0.036%
+      g_min 0.5 -> 0.25            n= 35 win= 34.3% ret/trade=-0.067%
+      g_min 0.5 -> 0.75            n= 22 win= 36.4% ret/trade=-0.031%
+      atr_k 2.0 -> 1.5             n= 26 win= 38.5% ret/trade=-0.036%
+      atr_k 2.0 -> 2.5             n= 26 win= 38.5% ret/trade=-0.036%
+      t1_r 1.0 -> 0.5              n= 26 win= 57.7% ret/trade=-0.051%
+      t1_r 1.0 -> 1.5              n= 26 win= 23.1% ret/trade=-0.089%
+
+=== GG-W: GG {"g_min": 0.5, "g_max": 99.0, "pm_ratio_min": 0.0, "trigger": "orh15", "t_start": 5, "t_end": 60, "stop": "vwap", "atr_k": 2.0, "t1_r": 1.0, "t2_r": 0, "frac": 0.5, "flat": 240, "ts_min": null, "exit_mode": "vwap"} filters=['below_prior_high']
+   design, 9 main symbols (tuned here) n=  50 win= 66.0% ret/trade=+0.197% [+0.053,+0.343] avgR=+0.338 PF=2.28 t=+2.61
+   design dates, hold-out symbols     n=   6 win= 33.3% ret/trade=-0.117% [-0.370,+0.140] avgR=-0.269 PF=0.33 t=-0.88
+   FINAL period, all 11 symbols       n=  13 win= 69.2% ret/trade=+0.290% [-0.162,+0.703] avgR=+0.621 PF=3.30 t=+1.32
+   FINAL period, 9 main symbols       n=  10 win= 70.0% ret/trade=+0.330% [-0.178,+0.821] avgR=+0.755 PF=3.96 t=+1.30
+   FINAL period, hold-out symbols     n=   3 win= 66.7% ret/trade=+0.155% [+0.155,+0.155] avgR=+0.177 PF=1.55 t=+0.36
+   engine, mean of 30 orderings: trades 12 | win 66.7% | avg R +0.632 | PF 3.16 | return +3.41% (orderings +3.41..+3.41)
+   neighbourhood on the FINAL period (one grid step away):
+      t_start 5 -> 15              n= 13 win= 69.2% ret/trade=+0.290%
+      g_min 0.5 -> 0.25            n= 24 win= 58.3% ret/trade=+0.129%
+      g_min 0.5 -> 0.75            n=  8 win= 62.5% ret/trade=+0.208%
+      atr_k 2.0 -> 1.5             n= 13 win= 69.2% ret/trade=+0.290%
+      atr_k 2.0 -> 2.5             n= 13 win= 69.2% ret/trade=+0.290%
+      t1_r 1.0 -> 0.5              n= 13 win= 69.2% ret/trade=+0.120%
+      t1_r 1.0 -> 1.5              n= 13 win= 38.5% ret/trade=+0.193%
+
+=== RS-core: RS {"side": "leader", "t_dec": 120, "rs_min": 1.0, "need_vwap": true, "spy_state": "any", "trigger": "now", "t_end": 150, "stop": "vwap", "atr_k": 2.0, "t1_r": 1.5, "t2_r": 2.5, "frac": 0.5, "flat": 385, "ts_min": 180, "exit_mode": null, "rank_max": 0} filters=[]
+   design, 9 main symbols (tuned here) n= 220 win= 52.3% ret/trade=+0.119% [+0.027,+0.213] avgR=+0.168 PF=1.48 t=+2.53
+   design dates, hold-out symbols     n=  64 win= 37.5% ret/trade=-0.017% [-0.143,+0.101] avgR=-0.039 PF=0.91 t=-0.27
+   FINAL period, all 11 symbols       n=  97 win= 33.0% ret/trade=-0.126% [-0.234,-0.013] avgR=-0.192 PF=0.64 t=-2.19
+   FINAL period, 9 main symbols       n=  76 win= 32.9% ret/trade=-0.139% [-0.256,-0.019] avgR=-0.220 PF=0.60 t=-2.26
+   FINAL period, hold-out symbols     n=  21 win= 33.3% ret/trade=-0.081% [-0.329,+0.205] avgR=-0.092 PF=0.80 t=-0.62
+   engine, mean of 30 orderings: trades 41 | win 36.5% | avg R -0.107 | PF 0.80 | return -2.79% (orderings -6.24..+0.45)
+   neighbourhood on the FINAL period (one grid step away):
+      t_dec 120 -> 90              n=109 win= 36.7% ret/trade=-0.155%
+      t_dec 120 -> 150             n= 67 win= 35.8% ret/trade=-0.137%
+      rs_min 1.0 -> 0.8            n=114 win= 35.1% ret/trade=-0.106%
+      rs_min 1.0 -> 1.2            n= 78 win= 34.6% ret/trade=-0.099%
+      atr_k 2.0 -> 1.5             n= 97 win= 33.0% ret/trade=-0.126%
+      atr_k 2.0 -> 2.5             n= 97 win= 33.0% ret/trade=-0.126%
+      t1_r 1.5 -> 1.0              n= 97 win= 37.1% ret/trade=-0.113%
+      t1_r 1.5 -> 2.0              n= 97 win= 30.9% ret/trade=-0.131%
+      ts_min 180 -> 150            n= 97 win= 36.1% ret/trade=-0.109%
+      ts_min 180 -> 210            n= 97 win= 32.0% ret/trade=-0.126%
+
+=== RS-E: RS {"side": "leader", "t_dec": 120, "rs_min": 1.0, "need_vwap": true, "spy_state": "any", "trigger": "now", "t_end": 150, "stop": "vwap", "atr_k": 2.0, "t1_r": 1.5, "t2_r": 2.5, "frac": 0.5, "flat": 385, "ts_min": 180, "exit_mode": null, "rank_max": 0} filters=['spy_below_vwap', 'volatile_stock']
+   design, 9 main symbols (tuned here) n=  64 win= 60.9% ret/trade=+0.263% [+0.073,+0.445] avgR=+0.432 PF=2.26 t=+2.94
+   design dates, hold-out symbols     n=  31 win= 38.7% ret/trade=+0.017% [-0.150,+0.226] avgR=+0.014 PF=1.03 t=+0.18
+   FINAL period, all 11 symbols       n=  39 win= 33.3% ret/trade=-0.118% [-0.251,+0.030] avgR=-0.214 PF=0.61 t=-1.76
+   FINAL period, 9 main symbols       n=  30 win= 36.7% ret/trade=-0.071% [-0.226,+0.092] avgR=-0.190 PF=0.65 t=-0.90
+   FINAL period, hold-out symbols     n=   9 win= 22.2% ret/trade=-0.275% [-0.479,-0.106] avgR=-0.291 PF=0.46 t=-2.74
+   engine, mean of 30 orderings: trades 19 | win 39.1% | avg R -0.118 | PF 0.79 | return -0.87% (orderings -2.71..+1.19)
+   neighbourhood on the FINAL period (one grid step away):
+      t_dec 120 -> 90              n= 45 win= 35.6% ret/trade=-0.070%
+      t_dec 120 -> 150             n= 28 win= 32.1% ret/trade=-0.162%
+      rs_min 1.0 -> 0.8            n= 46 win= 39.1% ret/trade=-0.058%
+      rs_min 1.0 -> 1.2            n= 30 win= 36.7% ret/trade=-0.097%
+      atr_k 2.0 -> 1.5             n= 39 win= 33.3% ret/trade=-0.118%
+      atr_k 2.0 -> 2.5             n= 39 win= 33.3% ret/trade=-0.118%
+      t1_r 1.5 -> 1.0              n= 39 win= 38.5% ret/trade=-0.110%
+      t1_r 1.5 -> 2.0              n= 39 win= 33.3% ret/trade=-0.119%
+      ts_min 180 -> 150            n= 39 win= 30.8% ret/trade=-0.118%
+      ts_min 180 -> 210            n= 39 win= 28.2% ret/trade=-0.135%
+
+=== LH-core: LH {"t_ent": 360, "stop": "pct", "atr_k": 3.0, "stop_pct": 0.8, "t1_r": 1.0, "frac": 0.5, "flat": 385, "ts_min": null, "exit_mode": null, "need_ret_open": null, "need_first30": null, "need_vwap": null, "near_hod": null, "spy_up": false, "rs_min": null, "oversold": 2.0} filters=[]
+   design, 9 main symbols (tuned here) n= 264 win= 60.6% ret/trade=+0.075% [+0.004,+0.145] avgR=+0.094 PF=1.80 t=+2.12
+   design dates, hold-out symbols     n=  41 win= 53.7% ret/trade=-0.011% [-0.101,+0.080] avgR=-0.014 PF=0.92 t=-0.24
+   FINAL period, all 11 symbols       n=  91 win= 36.3% ret/trade=-0.023% [-0.110,+0.072] avgR=-0.029 PF=0.80 t=-0.50
+   FINAL period, 9 main symbols       n=  77 win= 37.7% ret/trade=-0.014% [-0.093,+0.075] avgR=-0.017 PF=0.87 t=-0.31
+   FINAL period, hold-out symbols     n=  14 win= 28.6% ret/trade=-0.074% [-0.247,+0.092] avgR=-0.093 PF=0.58 t=-0.86
+   engine, mean of 30 orderings: trades 25 | win 33.3% | avg R -0.068 | PF 0.59 | return -1.35% (orderings -2.72..+0.65)
+   neighbourhood on the FINAL period (one grid step away):
+      t_ent 360 -> 330             n=100 win= 42.0% ret/trade=-0.046%
+      t_ent 360 -> 390             n=  0 win=  0.0% ret/trade=+0.000%
+      atr_k 3.0 -> 2.5             n= 91 win= 36.3% ret/trade=-0.023%
+      atr_k 3.0 -> 3.5             n= 91 win= 36.3% ret/trade=-0.023%
+      stop_pct 0.8 -> 0.7          n= 91 win= 36.3% ret/trade=-0.025%
+      stop_pct 0.8 -> 0.9          n= 91 win= 36.3% ret/trade=-0.024%
+      t1_r 1.0 -> 0.5              n= 91 win= 39.6% ret/trade=-0.021%
+      t1_r 1.0 -> 1.5              n= 91 win= 36.3% ret/trade=-0.023%
+      oversold 2.0 -> 1.5          n=114 win= 38.6% ret/trade=-0.015%
+      oversold 2.0 -> 2.5          n= 75 win= 36.0% ret/trade=-0.006%
+
+=== LH-E: LH {"t_ent": 360, "stop": "pct", "atr_k": 3.0, "stop_pct": 0.8, "t1_r": 1.0, "frac": 0.5, "flat": 385, "ts_min": null, "exit_mode": null, "need_ret_open": null, "need_first30": null, "need_vwap": null, "near_hod": null, "spy_up": false, "rs_min": null, "oversold": 2.0} filters=['above_prior_low', 'below_prior_high', 'far_hod']
+   design, 9 main symbols (tuned here) n= 101 win= 69.3% ret/trade=+0.127% [+0.051,+0.196] avgR=+0.159 PF=3.10 t=+3.38
+   design dates, hold-out symbols     n=  14 win= 42.9% ret/trade=-0.084% [-0.247,+0.096] avgR=-0.105 PF=0.53 t=-0.99
+   FINAL period, all 11 symbols       n=  46 win= 32.6% ret/trade=-0.043% [-0.131,+0.043] avgR=-0.053 PF=0.67 t=-0.98
+   FINAL period, 9 main symbols       n=  37 win= 32.4% ret/trade=-0.049% [-0.131,+0.022] avgR=-0.061 PF=0.60 t=-1.23
+   FINAL period, hold-out symbols     n=   9 win= 33.3% ret/trade=-0.017% [-0.261,+0.236] avgR=-0.021 PF=0.90 t=-0.14
+   engine, mean of 30 orderings: trades 21 | win 27.7% | avg R -0.111 | PF 0.45 | return -1.83% (orderings -3.39..+0.24)
+   neighbourhood on the FINAL period (one grid step away):
+      t_ent 360 -> 330             n= 50 win= 42.0% ret/trade=-0.051%
+      t_ent 360 -> 390             n=  0 win=  0.0% ret/trade=+0.000%
+      atr_k 3.0 -> 2.5             n= 46 win= 32.6% ret/trade=-0.043%
+      atr_k 3.0 -> 3.5             n= 46 win= 32.6% ret/trade=-0.043%
+      stop_pct 0.8 -> 0.7          n= 46 win= 32.6% ret/trade=-0.050%
+      stop_pct 0.8 -> 0.9          n= 46 win= 32.6% ret/trade=-0.043%
+      t1_r 1.0 -> 0.5              n= 46 win= 37.0% ret/trade=-0.036%
+      t1_r 1.0 -> 1.5              n= 46 win= 32.6% ret/trade=-0.043%
+      oversold 2.0 -> 1.5          n= 55 win= 34.5% ret/trade=-0.024%
+      oversold 2.0 -> 2.5          n= 40 win= 37.5% ret/trade=-0.012%
+
+=== ref-GF-plain: GF {"g_min": 1.0, "g_max": 99.0, "t_start": 15, "t_end": 15, "confirm": "none", "stop": "lod", "atr_k": 2.0, "target": "fill_split", "a": 0.5, "t1_r": 1.5, "t2_r": 2.5, "rr_min": 0.0, "flat": 385, "ts_min": null, "exit_mode": null} filters=[]
+   design, 9 main symbols (tuned here) n= 147 win= 40.1% ret/trade=+0.063% [-0.107,+0.249] avgR=+0.206 PF=1.35 t=+0.72
+   design dates, hold-out symbols     n=  24 win= 33.3% ret/trade=-0.195% [-0.453,+0.085] avgR=-0.154 PF=0.76 t=-1.45
+   FINAL period, all 11 symbols       n=  34 win= 50.0% ret/trade=+0.061% [-0.199,+0.267] avgR=+0.048 PF=1.10 t=+0.52
+   FINAL period, 9 main symbols       n=  28 win= 53.6% ret/trade=+0.131% [-0.175,+0.343] avgR=+0.184 PF=1.40 t=+1.03
+   FINAL period, hold-out symbols     n=   6 win= 33.3% ret/trade=-0.265% [-0.570,+0.039] avgR=-0.584 PF=0.12 t=-1.66
+
+=== ref-GG-plain: GG {"g_min": 1.0, "g_max": 99.0, "pm_ratio_min": 0.0, "trigger": "orh5", "t_start": 5, "t_end": 60, "stop": "orl", "atr_k": 2.0, "t1_r": 1.5, "t2_r": 3.0, "frac": 0.5, "flat": 385, "ts_min": null, "exit_mode": null} filters=[]
+   design, 9 main symbols (tuned here) n=  59 win= 52.5% ret/trade=+0.104% [-0.163,+0.337] avgR=+0.112 PF=1.28 t=+0.81
+   design dates, hold-out symbols     n=  10 win= 20.0% ret/trade=-0.215% [-0.770,+0.476] avgR=-0.241 PF=0.59 t=-0.67
+   FINAL period, all 11 symbols       n=  18 win= 38.9% ret/trade=-0.341% [-0.696,+0.033] avgR=-0.349 PF=0.42 t=-1.83
+   FINAL period, 9 main symbols       n=  17 win= 41.2% ret/trade=-0.302% [-0.665,+0.090] avgR=-0.310 PF=0.47 t=-1.60
+   FINAL period, hold-out symbols     n=   1 win=  0.0% ret/trade=-1.015% [-1.015,-1.015] avgR=-1.015 PF=0.00 t=-1014506738.72
+
+=== ref-RS-plain: RS {"side": "leader", "t_dec": 60, "rs_min": 0.5, "need_vwap": true, "spy_state": "any", "trigger": "now", "t_end": 150, "stop": "vwap", "atr_k": 2.0, "t1_r": 1.5, "t2_r": 2.5, "frac": 0.5, "flat": 385, "ts_min": 90, "exit_mode": null, "rank_max": 0} filters=[]
+   design, 9 main symbols (tuned here) n= 411 win= 49.4% ret/trade=+0.048% [-0.030,+0.119] avgR=+0.070 PF=1.16 t=+1.30
+   design dates, hold-out symbols     n= 130 win= 42.3% ret/trade=+0.021% [-0.078,+0.120] avgR=+0.033 PF=1.08 t=+0.41
+   FINAL period, all 11 symbols       n= 171 win= 39.2% ret/trade=-0.059% [-0.149,+0.027] avgR=-0.104 PF=0.78 t=-1.32
+   FINAL period, 9 main symbols       n= 132 win= 39.4% ret/trade=-0.067% [-0.162,+0.035] avgR=-0.103 PF=0.78 t=-1.35
+   FINAL period, hold-out symbols     n=  39 win= 38.5% ret/trade=-0.034% [-0.199,+0.152] avgR=-0.107 PF=0.78 t=-0.38
+
+=== ref-LH-momentum: LH {"t_ent": 330, "stop": "atr", "atr_k": 3.0, "stop_pct": 0.5, "t1_r": 0.0, "frac": 0.5, "flat": 385, "ts_min": null, "exit_mode": null, "need_ret_open": 0.6, "need_first30": null, "need_vwap": true, "near_hod": null, "spy_up": null, "rs_min": null, "oversold": null} filters=[]
+   design, 9 main symbols (tuned here) n= 321 win= 44.2% ret/trade=-0.041% [-0.119,+0.037] avgR=-0.073 PF=0.79 t=-1.03
+   design dates, hold-out symbols     n=  85 win= 44.7% ret/trade=-0.079% [-0.183,+0.041] avgR=-0.109 PF=0.71 t=-1.46
+   FINAL period, all 11 symbols       n= 107 win= 45.8% ret/trade=-0.058% [-0.123,+0.006] avgR=-0.123 PF=0.66 t=-1.75
+   FINAL period, 9 main symbols       n=  84 win= 40.5% ret/trade=-0.080% [-0.157,-0.002] avgR=-0.158 PF=0.59 t=-2.01
+   FINAL period, hold-out symbols     n=  23 win= 65.2% ret/trade=+0.020% [-0.105,+0.143] avgR=+0.002 PF=1.01 t=+0.31
+
+====================================================================================================
+SUMMARY (pre-registered bar on the FINAL period: n >= 20, 95% CI of return/trade above 0, win rate >= 45%, PF >= 1.3)
+====================================================================================================
+  GF-core          does not meet the bar        n=  35 win= 51.4% ret/trade=+0.252% [-0.001,+0.518] avgR=+0.317 PF=1.87 t=+1.92
+  GF-E             does not meet the bar        n=   9 win= 33.3% ret/trade=+0.334% [-0.313,+1.039] avgR=+0.243 PF=1.49 t=+0.94
+  GF-W             MEETS THE BAR                n=  35 win= 71.4% ret/trade=+0.237% [+0.083,+0.434] avgR=+0.248 PF=2.83 t=+2.71
+  GG-core          does not meet the bar        n=  53 win= 39.6% ret/trade=-0.030% [-0.237,+0.175] avgR=+0.110 PF=1.26 t=-0.29
+  GG-E             does not meet the bar        n=  26 win= 38.5% ret/trade=-0.036% [-0.330,+0.298] avgR=+0.165 PF=1.39 t=-0.22
+  GG-W             does not meet the bar        n=  13 win= 69.2% ret/trade=+0.290% [-0.162,+0.703] avgR=+0.621 PF=3.30 t=+1.32
+  RS-core          does not meet the bar        n=  97 win= 33.0% ret/trade=-0.126% [-0.234,-0.013] avgR=-0.192 PF=0.64 t=-2.19
+  RS-E             does not meet the bar        n=  39 win= 33.3% ret/trade=-0.118% [-0.251,+0.030] avgR=-0.214 PF=0.61 t=-1.76
+  LH-core          does not meet the bar        n=  91 win= 36.3% ret/trade=-0.023% [-0.110,+0.072] avgR=-0.029 PF=0.80 t=-0.50
+  LH-E             does not meet the bar        n=  46 win= 32.6% ret/trade=-0.043% [-0.131,+0.043] avgR=-0.053 PF=0.67 t=-0.98
+  ref-GF-plain     reference idea (not judged)  n=  34 win= 50.0% ret/trade=+0.061% [-0.199,+0.267] avgR=+0.048 PF=1.10 t=+0.52
+  ref-GG-plain     reference idea (not judged)  n=  18 win= 38.9% ret/trade=-0.341% [-0.696,+0.033] avgR=-0.349 PF=0.42 t=-1.83
+  ref-RS-plain     reference idea (not judged)  n= 171 win= 39.2% ret/trade=-0.059% [-0.149,+0.027] avgR=-0.104 PF=0.78 t=-1.32
+  ref-LH-momentum  reference idea (not judged)  n= 107 win= 45.8% ret/trade=-0.058% [-0.123,+0.006] avgR=-0.123 PF=0.66 t=-1.75

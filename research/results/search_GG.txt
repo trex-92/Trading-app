@@ -1,0 +1,42 @@
+design data: 1305 symbol-days, blocks start ['2026-01-05', '2026-02-26', '2026-04-20', '2026-06-10', '2026-07-31']
+
+--- GG / 1: gap size, trigger, premarket volume: 75 variants (75 so far); reality check on this stage: best t=0.83, p=0.674
+   g_min=0.5 trigger=orh15 pm_ratio_min=0.0       n=  92 win= 54.3% ret/trade=+0.084% [-0.112,+0.285] avgR=+0.124 PF=1.32 t=+0.84 blocks+ 3/4
+   g_min=1.0 trigger=vwap_bounce pm_ratio_min=0.0 n= 138 win= 43.5% ret/trade=+0.076% [-0.090,+0.262] avgR=+0.111 PF=1.21 t=+0.83 blocks+ 3/4
+   g_min=0.5 trigger=orh5 pm_ratio_min=0.0        n= 138 win= 50.0% ret/trade=+0.063% [-0.109,+0.230] avgR=+0.094 PF=1.22 t=+0.69 blocks+ 4/4
+   g_min=1.0 trigger=none pm_ratio_min=0.0        n= 149 win= 44.3% ret/trade=+0.064% [-0.109,+0.258] avgR=+0.075 PF=1.14 t=+0.69 blocks+ 3/4
+   g_min=0.5 trigger=none pm_ratio_min=0.0        n= 274 win= 42.3% ret/trade=+0.020% [-0.122,+0.162] avgR=+0.023 PF=1.04 t=+0.29 blocks+ 3/4
+
+--- GG / 2: stop, targets, exit: 144 variants (219 so far); reality check on this stage: best t=3.07, p=0.025
+   stop=vwap t1_r=1.0 t2_r=0 exit_mode=vwap flat=240 n= 148 win= 59.5% ret/trade=+0.203% [+0.083,+0.332] avgR=+0.268 PF=1.85 t=+3.30 blocks+ 4/4
+   stop=vwap t1_r=1.0 t2_r=3.0 exit_mode=vwap flat=240 n= 148 win= 59.5% ret/trade=+0.190% [+0.076,+0.310] avgR=+0.245 PF=1.78 t=+3.24 blocks+ 4/4
+   stop=vwap t1_r=1.0 t2_r=0 exit_mode=vwap flat=385 n= 148 win= 57.4% ret/trade=+0.225% [+0.088,+0.367] avgR=+0.299 PF=1.94 t=+3.22 blocks+ 4/4
+   stop=vwap t1_r=1.0 t2_r=3.0 exit_mode=vwap flat=385 n= 148 win= 57.4% ret/trade=+0.195% [+0.075,+0.323] avgR=+0.252 PF=1.80 t=+3.15 blocks+ 4/4
+   stop=vwap t1_r=2.0 t2_r=0 exit_mode=vwap flat=240 n= 148 win= 44.6% ret/trade=+0.223% [+0.081,+0.367] avgR=+0.274 PF=1.74 t=+3.15 blocks+ 4/4
+   stop=vwap t1_r=1.5 t2_r=0 exit_mode=vwap flat=240 n= 148 win= 46.6% ret/trade=+0.209% [+0.081,+0.347] avgR=+0.258 PF=1.70 t=+3.13 blocks+ 4/4
+   stop=vwap t1_r=2.0 t2_r=3.0 exit_mode=vwap flat=240 n= 148 win= 44.6% ret/trade=+0.210% [+0.074,+0.350] avgR=+0.251 PF=1.68 t=+3.06 blocks+ 4/4
+   stop=vwap t1_r=1.5 t2_r=3.0 exit_mode=vwap flat=240 n= 148 win= 46.6% ret/trade=+0.196% [+0.072,+0.325] avgR=+0.235 PF=1.64 t=+3.04 blocks+ 4/4
+
+--- GG / 5.1: add an extra signal (current: none; base t=+3.30): 50 variants (269 so far); reality check on this stage: best t=3.08, p=0.025
+   rvol_ge1                                       n=  75 win= 61.3% ret/trade=+0.276% [+0.130,+0.429] avgR=+0.309 PF=2.09 t=+3.39 blocks+ 4/4
+   spy_not_down                                   n= 121 win= 60.3% ret/trade=+0.246% [+0.105,+0.388] avgR=+0.318 PF=2.05 t=+3.31 blocks+ 4/4
+   range_small                                    n= 133 win= 61.7% ret/trade=+0.217% [+0.095,+0.357] avgR=+0.296 PF=1.97 t=+3.31 blocks+ 4/4
+   above_vwap                                     n= 148 win= 59.5% ret/trade=+0.203% [+0.083,+0.332] avgR=+0.268 PF=1.85 t=+3.30 blocks+ 4/4
+   above_prior_low                                n= 148 win= 59.5% ret/trade=+0.203% [+0.083,+0.332] avgR=+0.268 PF=1.85 t=+3.30 blocks+ 4/4
+   ret_open_pos                                   n= 148 win= 59.5% ret/trade=+0.203% [+0.083,+0.332] avgR=+0.268 PF=1.85 t=+3.30 blocks+ 4/4
+
+--- GG / 5.2: add an extra signal (current: rvol_ge1; base t=+3.39): 49 variants (318 so far); reality check on this stage: best t=3.11, p=0.014
+   rvol_ge1+above_vwap                            n=  75 win= 61.3% ret/trade=+0.276% [+0.130,+0.429] avgR=+0.309 PF=2.09 t=+3.39 blocks+ 4/4
+   rvol_ge1+atr_high                              n=  75 win= 61.3% ret/trade=+0.276% [+0.130,+0.429] avgR=+0.309 PF=2.09 t=+3.39 blocks+ 4/4
+   rvol_ge1+above_prior_low                       n=  75 win= 61.3% ret/trade=+0.276% [+0.130,+0.429] avgR=+0.309 PF=2.09 t=+3.39 blocks+ 4/4
+   rvol_ge1+ret_open_pos                          n=  75 win= 61.3% ret/trade=+0.276% [+0.130,+0.429] avgR=+0.309 PF=2.09 t=+3.39 blocks+ 4/4
+   rvol_ge1+far_lod                               n=  71 win= 60.6% ret/trade=+0.288% [+0.117,+0.464] avgR=+0.314 PF=2.09 t=+3.37 blocks+ 4/4
+   rvol_ge1+range_small                           n=  65 win= 64.6% ret/trade=+0.295% [+0.132,+0.470] avgR=+0.339 PF=2.27 t=+3.37 blocks+ 4/4
+
+[GG] highest win rate with t>=1.5 and 3/4 blocks positive: below_prior_high  n=  50 win= 66.0% ret/trade=+0.197% [+0.053,+0.343] avgR=+0.338 PF=2.28 t=+2.61
+
+[GG] overall reality check across all 210 variants with enough trades: best t=3.11, adjusted p=0.052
+
+=== GG: 318 variants evaluated in 11s ===
+FINAL FORMULA (design data): {"params": {"g_min": 0.5, "g_max": 99.0, "pm_ratio_min": 0.0, "trigger": "orh15", "t_start": 5, "t_end": 60, "stop": "vwap", "atr_k": 2.0, "t1_r": 1.0, "t2_r": 0, "frac": 0.5, "flat": 240, "ts_min": null, "exit_mode": "vwap"}, "filters": ["rvol_ge1"], "stats": {"n": 75, "win": 61.33333333333333, "mean": 0.2764992950029092, "r": 0.30906976170055594, "pf": 2.0915700343894326, "t": 3.3863887358917326, "lo": 0.13001888341345744, "hi": 0.42877141149613246, "days": 57}, "win_formula": {"params": {"g_min": 0.5, "g_max": 99.0, "pm_ratio_min": 0.0, "trigger": "orh15", "t_start": 5, "t_end": 60, "stop": "vwap", "atr_k": 2.0, "t1_r": 1.0, "t2_r": 0, "frac": 0.5, "flat": 240, "ts_min": null, "exit_mode": "vwap"}, "filters": ["below_prior_high"], "stats": {"n": 50, "win": 66.0, "mean": 0.19745686656387448, "r": 0.3384492788263131, "pf": 2.2813046645890442, "t": 2.606258846050551, "lo": 0.05256453053565295, "hi": 0.34335395049035694, "days": 34}, "blocks": [0.17779746385401332, 0.16299247064376812, 0.38839387975737566, 0.13002573413309146], "name": "below_prior_high"}, "rc_all": {"variants": 318, "best_t": 3.107905893891447, "p": 0.052}}
+   block means (acct ret per trade, %): [0.088, 0.234, 0.446, 0.316]

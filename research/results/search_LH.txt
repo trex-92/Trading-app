@@ -1,0 +1,60 @@
+design data: 1305 symbol-days, blocks start ['2026-01-05', '2026-02-26', '2026-04-20', '2026-06-10', '2026-07-31']
+
+--- LH / 1: entry time, no signal: 4 variants (4 so far); reality check on this stage: best t=-0.16, p=0.832
+   t_ent=330                                      n=1104 win= 48.0% ret/trade=-0.004% [-0.049,+0.045] avgR=-0.012 PF=0.96 t=-0.16 blocks+ 1/4  (fails the selection rule)
+   t_ent=360                                      n=1106 win= 51.2% ret/trade=-0.003% [-0.034,+0.027] avgR=-0.019 PF=0.92 t=-0.20 blocks+ 2/4  (fails the selection rule)
+   t_ent=270                                      n=1095 win= 43.4% ret/trade=-0.027% [-0.082,+0.025] avgR=-0.062 PF=0.84 t=-0.98 blocks+ 0/4  (fails the selection rule)
+   t_ent=300                                      n=1107 win= 43.3% ret/trade=-0.053% [-0.100,-0.008] avgR=-0.099 PF=0.75 t=-2.16 blocks+ 0/4  (fails the selection rule)
+
+--- LH / 2: single signals at each entry time: 68 variants (72 so far); reality check on this stage: best t=1.30, p=0.678
+   t_ent=360 oversold>=2                          n= 307 win= 58.0% ret/trade=+0.031% [-0.014,+0.078] avgR=+0.038 PF=1.20 t=+1.32 blocks+ 3/4
+   t_ent=360 oversold>=1                          n= 430 win= 57.0% ret/trade=+0.027% [-0.013,+0.066] avgR=+0.038 PF=1.20 t=+1.30 blocks+ 3/4
+   t_ent=360 below_vwap                           n= 544 win= 56.2% ret/trade=+0.023% [-0.013,+0.059] avgR=+0.026 PF=1.13 t=+1.23 blocks+ 3/4
+   t_ent=270 first30>=0                           n= 559 win= 46.2% ret/trade=+0.025% [-0.038,+0.086] avgR=+0.011 PF=1.03 t=+0.77 blocks+ 3/4
+   t_ent=330 oversold>=2                          n= 301 win= 52.5% ret/trade=+0.021% [-0.053,+0.094] avgR=+0.017 PF=1.06 t=+0.57 blocks+ 3/4
+   t_ent=330 spy_up                               n= 580 win= 49.7% ret/trade=+0.010% [-0.054,+0.081] avgR=+0.026 PF=1.09 t=+0.31 blocks+ 3/4
+
+--- LH / 3: add a second condition: 16 variants (88 so far); reality check on this stage: best t=1.47, p=0.155
+   + spy_down                                     n= 220 win= 60.5% ret/trade=+0.045% [-0.012,+0.106] avgR=+0.059 PF=1.34 t=+1.49 blocks+ 4/4
+   + below_vwap                                   n= 307 win= 58.0% ret/trade=+0.031% [-0.014,+0.078] avgR=+0.038 PF=1.20 t=+1.32 blocks+ 3/4
+   + oversold>=1                                  n= 430 win= 57.0% ret/trade=+0.027% [-0.013,+0.066] avgR=+0.038 PF=1.20 t=+1.30 blocks+ 3/4
+   + first30>=0                                   n= 136 win= 55.1% ret/trade=+0.032% [-0.032,+0.086] avgR=+0.038 PF=1.19 t=+1.06 blocks+ 4/4
+
+--- LH / 4: stop and first target: 18 variants (106 so far); reality check on this stage: best t=2.06, p=0.053
+   stop=pct0.8 t1_r=1.0                           n= 264 win= 60.6% ret/trade=+0.075% [+0.004,+0.145] avgR=+0.094 PF=1.80 t=+2.12 blocks+ 4/4
+   stop=pct0.8 t1_r=0.0                           n= 264 win= 60.2% ret/trade=+0.079% [+0.004,+0.156] avgR=+0.099 PF=1.81 t=+2.06 blocks+ 4/4
+   stop=pct0.8 t1_r=1.5                           n= 264 win= 60.2% ret/trade=+0.074% [+0.001,+0.146] avgR=+0.092 PF=1.76 t=+2.03 blocks+ 4/4
+   stop=pct0.5 t1_r=1.0                           n= 264 win= 59.5% ret/trade=+0.065% [-0.002,+0.130] avgR=+0.130 PF=1.69 t=+1.97 blocks+ 4/4
+   stop=pct0.3 t1_r=1.5                           n= 228 win= 56.1% ret/trade=+0.061% [-0.004,+0.124] avgR=+0.205 PF=1.63 t=+1.91 blocks+ 4/4
+   stop=pct0.5 t1_r=0.0                           n= 264 win= 58.3% ret/trade=+0.073% [-0.001,+0.149] avgR=+0.146 PF=1.74 t=+1.90 blocks+ 4/4
+   stop=pct0.5 t1_r=1.5                           n= 264 win= 58.7% ret/trade=+0.067% [-0.005,+0.137] avgR=+0.133 PF=1.68 t=+1.88 blocks+ 4/4
+   stop=pct0.3 t1_r=0.0                           n= 228 win= 53.9% ret/trade=+0.072% [-0.004,+0.150] avgR=+0.239 PF=1.69 t=+1.86 blocks+ 4/4
+
+--- LH / 5.1: add an extra signal (current: none; base t=+2.12): 50 variants (156 so far); reality check on this stage: best t=2.64, p=0.036
+   above_prior_low                                n= 120 win= 65.8% ret/trade=+0.107% [+0.037,+0.171] avgR=+0.134 PF=2.62 t=+3.01 blocks+ 4/4
+   volatile_stock                                 n= 173 win= 65.3% ret/trade=+0.117% [+0.035,+0.202] avgR=+0.146 PF=2.13 t=+2.68 blocks+ 4/4
+   gap_inside_prior                               n= 179 win= 64.2% ret/trade=+0.095% [+0.021,+0.157] avgR=+0.119 PF=2.13 t=+2.65 blocks+ 4/4
+   far_20d_high                                   n= 107 win= 65.4% ret/trade=+0.134% [+0.027,+0.241] avgR=+0.167 PF=2.21 t=+2.48 blocks+ 4/4
+   atr_high                                       n= 148 win= 65.5% ret/trade=+0.125% [+0.029,+0.225] avgR=+0.156 PF=2.10 t=+2.45 blocks+ 4/4
+   prev_down                                      n= 140 win= 65.7% ret/trade=+0.108% [+0.015,+0.198] avgR=+0.136 PF=2.19 t=+2.33 blocks+ 4/4
+
+--- LH / 5.2: add an extra signal (current: above_prior_low; base t=+3.01): 49 variants (205 so far); reality check on this stage: best t=2.80, p=0.010
+   above_prior_low+below_prior_high               n= 103 win= 68.9% ret/trade=+0.124% [+0.048,+0.193] avgR=+0.155 PF=3.04 t=+3.27 blocks+ 4/4
+   above_prior_low+far_hod                        n= 115 win= 67.8% ret/trade=+0.115% [+0.043,+0.179] avgR=+0.143 PF=2.74 t=+3.17 blocks+ 4/4
+   above_prior_low+below_vwap                     n= 120 win= 65.8% ret/trade=+0.107% [+0.037,+0.171] avgR=+0.134 PF=2.62 t=+3.01 blocks+ 4/4
+   above_prior_low+late                           n= 120 win= 65.8% ret/trade=+0.107% [+0.037,+0.171] avgR=+0.134 PF=2.62 t=+3.01 blocks+ 4/4
+   above_prior_low+ema_down                       n= 114 win= 65.8% ret/trade=+0.108% [+0.033,+0.181] avgR=+0.134 PF=2.55 t=+2.90 blocks+ 4/4
+   above_prior_low+gap_small_atr                  n= 102 win= 65.7% ret/trade=+0.099% [+0.019,+0.168] avgR=+0.124 PF=2.47 t=+2.61 blocks+ 4/4
+
+--- LH / 5.3: add an extra signal (current: above_prior_low+below_prior_high; base t=+3.27): 48 variants (253 so far); reality check on this stage: best t=2.84, p=0.007
+   above_prior_low+below_prior_high+far_hod       n= 101 win= 69.3% ret/trade=+0.127% [+0.051,+0.196] avgR=+0.159 PF=3.10 t=+3.38 blocks+ 4/4
+   above_prior_low+below_prior_high+below_vwap    n= 103 win= 68.9% ret/trade=+0.124% [+0.048,+0.193] avgR=+0.155 PF=3.04 t=+3.27 blocks+ 4/4
+   above_prior_low+below_prior_high+late          n= 103 win= 68.9% ret/trade=+0.124% [+0.048,+0.193] avgR=+0.155 PF=3.04 t=+3.27 blocks+ 4/4
+
+[LH] highest win rate with t>=1.5 and 3/4 blocks positive: above_prior_low+below_prior_high+far_hod  n= 101 win= 69.3% ret/trade=+0.127% [+0.051,+0.196] avgR=+0.159 PF=3.10 t=+3.38
+
+[LH] overall reality check across all 125 variants with enough trades: best t=2.84, adjusted p=0.074
+
+=== LH: 253 variants evaluated in 10s ===
+FINAL FORMULA (design data): {"params": {"t_ent": 360, "stop": "pct", "atr_k": 3.0, "stop_pct": 0.8, "t1_r": 1.0, "frac": 0.5, "flat": 385, "ts_min": null, "exit_mode": null, "need_ret_open": null, "need_first30": null, "need_vwap": null, "near_hod": null, "spy_up": false, "rs_min": null, "oversold": 2.0}, "filters": ["above_prior_low", "below_prior_high", "far_hod"], "stats": {"n": 101, "win": 69.3069306930693, "mean": 0.12720575866641232, "r": 0.15899760807264904, "pf": 3.100548576999423, "t": 3.3808523268842197, "lo": 0.05128205269444982, "hi": 0.19577228203670025, "days": 45}, "win_formula": {"params": {"t_ent": 360, "stop": "pct", "atr_k": 3.0, "stop_pct": 0.8, "t1_r": 1.0, "frac": 0.5, "flat": 385, "ts_min": null, "exit_mode": null, "need_ret_open": null, "need_first30": null, "need_vwap": null, "near_hod": null, "spy_up": false, "rs_min": null, "oversold": 2.0}, "filters": ["above_prior_low", "below_prior_high", "far_hod"], "stats": {"n": 101, "win": 69.3069306930693, "mean": 0.12720575866641232, "r": 0.15899760807264904, "pf": 3.100548576999423, "t": 3.3808523268842197, "lo": 0.05128205269444982, "hi": 0.19577228203670025, "days": 45}, "blocks": [0.12872148045032417, 0.10055397916761648, 0.15393639793086855, 0.12795919275416837], "name": "above_prior_low+below_prior_high+far_hod"}, "rc_all": {"variants": 253, "best_t": 2.8402467845048323, "p": 0.074}}
+   block means (acct ret per trade, %): [0.129, 0.101, 0.154, 0.128]

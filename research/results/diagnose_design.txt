@@ -1,0 +1,124 @@
+
+==============================================================================================================
+GF
+==============================================================================================================
+the plain idea (no tuning):
+   buy gap-downs >=0.5%, enter 09:45, LOD stop, half at 50% fill, rest at prior close  
+      n= 261 win= 44.1% ret/trade=+0.017% [-0.092,+0.138] avgR=+0.094 PF=1.17 t=+0.29
+   same, gap-downs >=1%                                                                
+      n= 147 win= 40.1% ret/trade=+0.063% [-0.107,+0.249] avgR=+0.206 PF=1.35 t=+0.72
+
+[E] filters=['far_20d_high', 'volatile_stock', 'ema_down']
+   n=  60 win= 53.3% ret/trade=+0.387% [+0.146,+0.634] avgR=+0.465 PF=2.11 t=+3.16
+   the 5 best trades supply 52% of the total return; without them +0.203% per trade
+   by symbol (n, mean %): AAPL:3,+0.24  IBM:12,+0.44  MSFT:8,+0.31  MU:8,+0.64  NVDA:10,+0.08  TSLA:19,+0.47
+   leave-one-symbol-out mean return per trade: min +0.348% max +0.448%
+   neighbouring parameters: 8/8 have a positive mean; t_start 60 -> 50: +0.264% (n=65); t_start 60 -> 70: +0.327% (n=61); g_min 1.0 -> 0.75: +0.257% (n=74); g_min 1.0 -> 1.25: +0.382% (n=39); atr_k 2.0 -> 1.5: +0.387% (n=60); atr_k 2.0 -> 2.5: +0.387% (n=60)
+   engine (random orderings): trades 44 | win 52.5% | avg R +0.361 | PF 1.84 | return +16.09% (orderings +12.81..+20.23)
+
+[W] filters=[]
+   n= 125 win= 60.8% ret/trade=+0.145% [-0.031,+0.313] avgR=+0.145 PF=1.50 t=+1.63
+   the 5 best trades supply 45% of the total return; without them +0.084% per trade
+   by symbol (n, mean %): AAPL:12,+0.19  IBM:18,+0.22  KO:4,+0.31  MSFT:21,+0.06  MU:1,+1.00  NVDA:24,-0.03  QQQI:10,+0.04  SPY:9,+0.18  TSLA:26,+0.28
+   leave-one-symbol-out mean return per trade: min +0.110% max +0.187%
+   neighbouring parameters: 8/8 have a positive mean; t_start 60 -> 50: +0.136% (n=123); t_start 60 -> 70: +0.043% (n=124); g_min 1.0 -> 0.75: +0.101% (n=181); g_min 1.0 -> 1.25: +0.126% (n=74); atr_k 2.5 -> 2.0: +0.143% (n=132); atr_k 2.5 -> 3.0: +0.103% (n=9
+   engine (random orderings): trades 59 | win 59.5% | avg R +0.100 | PF 1.39 | return +6.27% (orderings -1.72..+12.36)
+
+[core (no extra signals)] filters=[]
+   n= 122 win= 47.5% ret/trade=+0.191% [+0.030,+0.359] avgR=+0.403 PF=1.98 t=+2.21
+   the 5 best trades supply 52% of the total return; without them +0.096% per trade
+   by symbol (n, mean %): AAPL:12,+0.06  IBM:15,+0.26  KO:3,+0.13  MSFT:20,-0.01  MU:11,+0.56  NVDA:19,+0.08  QQQI:7,+0.14  SPY:9,+0.30  TSLA:26,+0.27
+   leave-one-symbol-out mean return per trade: min +0.154% max +0.230%
+   neighbouring parameters: 8/8 have a positive mean; t_start 60 -> 50: +0.186% (n=121); t_start 60 -> 70: +0.130% (n=120); g_min 1.0 -> 0.75: +0.091% (n=173); g_min 1.0 -> 1.25: +0.165% (n=72); atr_k 2.0 -> 1.5: +0.191% (n=122); atr_k 2.0 -> 2.5: +0.191% (n=1
+   engine (random orderings): trades 65 | win 44.4% | avg R +0.138 | PF 1.33 | return +7.22% (orderings +1.00..+14.93)
+
+==============================================================================================================
+GG
+==============================================================================================================
+the plain idea (no tuning):
+   buy gap-ups >=1%, break of the first 5-min high, ORL stop, 1.5R/3R                  
+      n=  59 win= 52.5% ret/trade=+0.104% [-0.163,+0.337] avgR=+0.112 PF=1.28 t=+0.81
+   buy gap-ups >=0.5%, break of the first 15-min high                                  
+      n=  92 win= 54.3% ret/trade=+0.084% [-0.112,+0.285] avgR=+0.124 PF=1.32 t=+0.84
+
+[E] filters=['rvol_ge1']
+   n=  75 win= 61.3% ret/trade=+0.276% [+0.130,+0.429] avgR=+0.309 PF=2.09 t=+3.39
+   the 5 best trades supply 57% of the total return; without them +0.128% per trade
+   by symbol (n, mean %): AAPL:13,-0.09  IBM:7,+0.77  KO:8,+0.31  MSFT:10,+0.34  MU:9,+0.65  NVDA:11,+0.03  QQQI:2,+0.31  SPY:6,+0.04  TSLA:9,+0.40
+   leave-one-symbol-out mean return per trade: min +0.225% max +0.354%
+   neighbouring parameters: 7/7 have a positive mean; t_start 5 -> 15: +0.276% (n=75); g_min 0.5 -> 0.25: +0.278% (n=83); g_min 0.5 -> 0.75: +0.326% (n=61); atr_k 2.0 -> 1.5: +0.276% (n=75); atr_k 2.0 -> 2.5: +0.276% (n=75); t1_r 1.0 -> 0.5: +0.190% (n=75)
+   engine (random orderings): trades 58 | win 61.3% | avg R +0.339 | PF 2.24 | return +17.56% (orderings +16.57..+18.42)
+
+[W] filters=['below_prior_high']
+   n=  50 win= 66.0% ret/trade=+0.197% [+0.053,+0.343] avgR=+0.338 PF=2.28 t=+2.61
+   the 5 best trades supply 76% of the total return; without them +0.052% per trade
+   by symbol (n, mean %): AAPL:4,+0.46  IBM:3,+0.50  KO:3,+0.67  MSFT:7,+0.04  MU:6,-0.13  NVDA:9,+0.22  QQQI:3,+0.28  SPY:4,+0.03  TSLA:11,+0.20
+   leave-one-symbol-out mean return per trade: min +0.167% max +0.243%
+   neighbouring parameters: 7/7 have a positive mean; t_start 5 -> 15: +0.197% (n=50); g_min 0.5 -> 0.25: +0.138% (n=71); g_min 0.5 -> 0.75: +0.182% (n=34); atr_k 2.0 -> 1.5: +0.197% (n=50); atr_k 2.0 -> 2.5: +0.197% (n=50); t1_r 1.0 -> 0.5: +0.103% (n=50)
+   engine (random orderings): trades 35 | win 65.7% | avg R +0.344 | PF 2.38 | return +6.89% (orderings +6.89..+6.89)
+
+[core (no extra signals)] filters=[]
+   n= 148 win= 59.5% ret/trade=+0.203% [+0.083,+0.332] avgR=+0.268 PF=1.85 t=+3.30
+   the 5 best trades supply 42% of the total return; without them +0.121% per trade
+   by symbol (n, mean %): AAPL:16,+0.04  IBM:14,+0.33  KO:14,+0.16  MSFT:23,+0.14  MU:19,+0.48  NVDA:22,+0.13  QQQI:4,+0.11  SPY:15,+0.02  TSLA:21,+0.32
+   leave-one-symbol-out mean return per trade: min +0.162% max +0.223%
+   neighbouring parameters: 7/7 have a positive mean; t_start 5 -> 15: +0.203% (n=148); g_min 0.5 -> 0.25: +0.166% (n=193); g_min 0.5 -> 0.75: +0.258% (n=101); atr_k 2.0 -> 1.5: +0.203% (n=148); atr_k 2.0 -> 2.5: +0.203% (n=148); t1_r 1.0 -> 0.5: +0.143% (n=14
+   engine (random orderings): trades 90 | win 56.7% | avg R +0.220 | PF 1.70 | return +15.00% (orderings +10.94..+18.43)
+
+==============================================================================================================
+RS
+==============================================================================================================
+the plain idea (no tuning):
+   leader: >=0.5% ahead of SPY at 10:30, above VWAP, buy now, VWAP stop                
+      n= 411 win= 49.4% ret/trade=+0.048% [-0.030,+0.119] avgR=+0.070 PF=1.16 t=+1.30
+   leader at 11:30, >=1% ahead                                                         
+      n= 220 win= 54.1% ret/trade=+0.090% [+0.015,+0.165] avgR=+0.142 PF=1.49 t=+2.39
+   laggard bounce: >=1% behind SPY at 10:30, green bar                                 
+      n= 284 win= 39.8% ret/trade=+0.006% [-0.057,+0.067] avgR=-0.010 PF=0.98 t=+0.19
+
+[E] filters=['spy_below_vwap', 'volatile_stock']
+   n=  64 win= 60.9% ret/trade=+0.263% [+0.073,+0.445] avgR=+0.432 PF=2.26 t=+2.94
+   the 5 best trades supply 49% of the total return; without them +0.147% per trade
+   by symbol (n, mean %): AAPL:12,-0.01  IBM:11,+0.23  KO:3,-0.27  MSFT:13,+0.37  MU:13,+0.49  NVDA:5,+0.85  TSLA:7,-0.03
+   leave-one-symbol-out mean return per trade: min +0.205% max +0.326%
+   neighbouring parameters: 10/10 have a positive mean; t_dec 120 -> 90: +0.058% (n=78); t_dec 120 -> 150: +0.014% (n=47); rs_min 1.0 -> 0.8: +0.162% (n=80); rs_min 1.0 -> 1.2: +0.260% (n=56); atr_k 2.0 -> 1.5: +0.263% (n=64); atr_k 2.0 -> 2.5: +0.263% (n=64)
+   engine (random orderings): trades 44 | win 57.7% | avg R +0.322 | PF 1.83 | return +10.22% (orderings +9.34..+11.02)
+
+[core (no extra signals)] filters=[]
+   n= 220 win= 52.3% ret/trade=+0.119% [+0.027,+0.213] avgR=+0.168 PF=1.48 t=+2.53
+   the 5 best trades supply 38% of the total return; without them +0.075% per trade
+   by symbol (n, mean %): AAPL:36,+0.04  IBM:30,+0.17  KO:25,+0.02  MSFT:30,+0.24  MU:38,+0.24  NVDA:34,-0.04  TSLA:27,+0.16
+   leave-one-symbol-out mean return per trade: min +0.093% max +0.149%
+   neighbouring parameters: 10/10 have a positive mean; t_dec 120 -> 90: +0.039% (n=249); t_dec 120 -> 150: +0.033% (n=160); rs_min 1.0 -> 0.8: +0.091% (n=265); rs_min 1.0 -> 1.2: +0.110% (n=180); atr_k 2.0 -> 1.5: +0.119% (n=220); atr_k 2.0 -> 2.5: +0.119% (n
+   engine (random orderings): trades 125 | win 52.8% | avg R +0.182 | PF 1.52 | return +18.59% (orderings +13.68..+23.90)
+
+==============================================================================================================
+LH
+==============================================================================================================
+the plain idea (no tuning):
+   momentum: up >=0.6% on the day at 15:00, above VWAP, hold to 15:55                  
+      n= 321 win= 44.2% ret/trade=-0.041% [-0.119,+0.037] avgR=-0.073 PF=0.79 t=-1.03
+   momentum: within 0.3% of the high of day at 15:00                                   
+      n= 211 win= 45.5% ret/trade=-0.036% [-0.120,+0.036] avgR=-0.066 PF=0.81 t=-0.97
+   momentum: SPY up and stock leading SPY at 15:30                                     
+      n= 222 win= 46.8% ret/trade=-0.028% [-0.092,+0.038] avgR=-0.058 PF=0.77 t=-0.88
+   first half-hour up and above VWAP at 14:00                                          
+      n= 329 win= 47.4% ret/trade=+0.045% [-0.029,+0.122] avgR=+0.056 PF=1.17 t=+1.16
+   oversold bounce: >=1 ATR below VWAP at 15:30                                        
+      n= 430 win= 57.0% ret/trade=+0.027% [-0.013,+0.066] avgR=+0.038 PF=1.20 t=+1.30
+
+[E] filters=['above_prior_low', 'below_prior_high', 'far_hod']
+   n= 101 win= 69.3% ret/trade=+0.127% [+0.051,+0.196] avgR=+0.159 PF=3.10 t=+3.38
+   the 5 best trades supply 37% of the total return; without them +0.084% per trade
+   by symbol (n, mean %): AAPL:16,+0.06  IBM:13,-0.02  KO:10,+0.04  MSFT:8,+0.17  MU:8,+0.65  NVDA:12,+0.15  QQQI:11,+0.06  SPY:12,+0.10  TSLA:11,+0.15
+   leave-one-symbol-out mean return per trade: min +0.083% max +0.149%
+   neighbouring parameters: 8/10 have a positive mean; t_ent 360 -> 330: -0.014% (n=89); t_ent 360 -> 390: +0.000% (n=0); atr_k 3.0 -> 2.5: +0.127% (n=101); atr_k 3.0 -> 3.5: +0.127% (n=101); stop_pct 0.8 -> 0.7: +0.119% (n=101); stop_pct 0.8 -> 0.9: +0.126% (
+   engine (random orderings): trades 45 | win 67.0% | avg R +0.122 | PF 2.43 | return +4.45% (orderings +2.05..+8.39)
+
+[core (no extra signals)] filters=[]
+   n= 264 win= 60.6% ret/trade=+0.075% [+0.004,+0.145] avgR=+0.094 PF=1.80 t=+2.12
+   the 5 best trades supply 34% of the total return; without them +0.050% per trade
+   by symbol (n, mean %): AAPL:29,+0.00  IBM:27,-0.09  KO:17,+0.02  MSFT:30,+0.01  MU:25,+0.44  NVDA:36,+0.11  QQQI:36,+0.02  SPY:32,+0.03  TSLA:32,+0.16
+   leave-one-symbol-out mean return per trade: min +0.038% max +0.094%
+   neighbouring parameters: 8/10 have a positive mean; t_ent 360 -> 330: -0.013% (n=256); t_ent 360 -> 390: +0.000% (n=0); atr_k 3.0 -> 2.5: +0.075% (n=264); atr_k 3.0 -> 3.5: +0.075% (n=264); stop_pct 0.8 -> 0.7: +0.069% (n=264); stop_pct 0.8 -> 0.9: +0.076% 
+   engine (random orderings): trades 62 | win 60.3% | avg R +0.078 | PF 1.71 | return +3.99% (orderings +0.56..+14.00)

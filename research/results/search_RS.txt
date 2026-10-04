@@ -1,0 +1,63 @@
+design data: 1305 symbol-days, blocks start ['2026-01-05', '2026-02-26', '2026-04-20', '2026-06-10', '2026-07-31']
+
+--- RS / 1: side, decision time, RS threshold, SPY state: 96 variants (96 so far); reality check on this stage: best t=2.37, p=0.347
+   side=leader t_dec=120 rs_min=1.0 spy_state=any n= 220 win= 54.1% ret/trade=+0.090% [+0.015,+0.165] avgR=+0.142 PF=1.49 t=+2.39 blocks+ 3/4
+   side=laggard t_dec=30 rs_min=1.5 spy_state=down n= 119 win= 52.1% ret/trade=+0.140% [+0.018,+0.255] avgR=+0.322 PF=1.68 t=+2.37 blocks+ 3/4
+   side=leader t_dec=120 rs_min=0.5 spy_state=any n= 324 win= 49.7% ret/trade=+0.061% [+0.002,+0.123] avgR=+0.099 PF=1.28 t=+2.00 blocks+ 3/4
+   side=leader t_dec=120 rs_min=0.3 spy_state=any n= 372 win= 48.9% ret/trade=+0.062% [+0.002,+0.122] avgR=+0.092 PF=1.26 t=+2.00 blocks+ 4/4
+   side=leader t_dec=90 rs_min=1.0 spy_state=up   n= 119 win= 57.1% ret/trade=+0.121% [+0.003,+0.238] avgR=+0.162 PF=1.63 t=+1.90 blocks+ 3/4
+   side=leader t_dec=120 rs_min=0.5 spy_state=down n= 100 win= 55.0% ret/trade=+0.104% [-0.002,+0.220] avgR=+0.231 PF=1.67 t=+1.86 blocks+ 4/4
+   side=leader t_dec=120 rs_min=1.0 spy_state=down n=  76 win= 55.3% ret/trade=+0.133% [-0.006,+0.272] avgR=+0.250 PF=1.82 t=+1.86 blocks+ 3/4
+   side=leader t_dec=120 rs_min=0.3 spy_state=down n= 106 win= 53.8% ret/trade=+0.095% [-0.011,+0.205] avgR=+0.208 PF=1.59 t=+1.72 blocks+ 4/4
+
+--- RS / 2: trigger, cross-sectional rank, VWAP: 24 variants (120 so far); reality check on this stage: best t=2.37, p=0.053
+   trigger=now rank_max=0 need_vwap=True          n= 220 win= 54.1% ret/trade=+0.090% [+0.015,+0.165] avgR=+0.142 PF=1.49 t=+2.39 blocks+ 3/4
+   trigger=now rank_max=0 need_vwap=False         n= 233 win= 54.1% ret/trade=+0.082% [+0.007,+0.148] avgR=+0.159 PF=1.53 t=+2.37 blocks+ 3/4
+   trigger=pullback rank_max=0 need_vwap=True     n= 176 win= 54.5% ret/trade=+0.094% [+0.008,+0.176] avgR=+0.150 PF=1.49 t=+2.13 blocks+ 3/4
+   trigger=pullback rank_max=0 need_vwap=False    n= 176 win= 54.5% ret/trade=+0.094% [+0.008,+0.176] avgR=+0.150 PF=1.49 t=+2.13 blocks+ 3/4
+   trigger=pullback rank_max=1 need_vwap=True     n=  99 win= 56.6% ret/trade=+0.128% [+0.015,+0.255] avgR=+0.178 PF=1.62 t=+2.07 blocks+ 3/4
+   trigger=pullback rank_max=1 need_vwap=False    n=  99 win= 56.6% ret/trade=+0.128% [+0.015,+0.255] avgR=+0.178 PF=1.62 t=+2.07 blocks+ 3/4
+   trigger=now rank_max=3 need_vwap=True          n= 215 win= 52.6% ret/trade=+0.079% [+0.005,+0.156] avgR=+0.115 PF=1.39 t=+2.04 blocks+ 3/4
+   trigger=now rank_max=3 need_vwap=False         n= 227 win= 52.9% ret/trade=+0.072% [+0.003,+0.146] avgR=+0.133 PF=1.43 t=+2.03 blocks+ 3/4
+
+--- RS / 3: stop, targets, time stop, exit: 144 variants (264 so far); reality check on this stage: best t=2.49, p=0.096
+   stop=vwap t1_r=1.5 ts_min=180 exit_mode=None   n= 220 win= 52.3% ret/trade=+0.119% [+0.027,+0.213] avgR=+0.168 PF=1.48 t=+2.53 blocks+ 4/4
+   stop=vwap t1_r=2.0 ts_min=180 exit_mode=None   n= 220 win= 49.5% ret/trade=+0.120% [+0.029,+0.220] avgR=+0.169 PF=1.46 t=+2.44 blocks+ 4/4
+   stop=vwap t1_r=1.0 ts_min=180 exit_mode=None   n= 220 win= 57.7% ret/trade=+0.101% [+0.020,+0.184] avgR=+0.143 PF=1.47 t=+2.41 blocks+ 4/4
+   stop=vwap t1_r=1.5 ts_min=90 exit_mode=None    n= 220 win= 54.1% ret/trade=+0.090% [+0.015,+0.165] avgR=+0.142 PF=1.49 t=+2.39 blocks+ 3/4
+   stop=vwap t1_r=2.0 ts_min=90 exit_mode=None    n= 220 win= 52.7% ret/trade=+0.093% [+0.016,+0.172] avgR=+0.143 PF=1.47 t=+2.36 blocks+ 3/4
+   stop=vwap t1_r=2.0 ts_min=60 exit_mode=None    n= 220 win= 50.9% ret/trade=+0.091% [+0.016,+0.179] avgR=+0.138 PF=1.51 t=+2.28 blocks+ 4/4
+   stop=vwap t1_r=1.5 ts_min=60 exit_mode=None    n= 220 win= 52.3% ret/trade=+0.080% [+0.011,+0.160] avgR=+0.125 PF=1.48 t=+2.15 blocks+ 4/4
+   stop=vwap t1_r=2.0 ts_min=180 exit_mode=vwap   n= 220 win= 44.5% ret/trade=+0.093% [+0.004,+0.188] avgR=+0.126 PF=1.36 t=+2.00 blocks+ 4/4
+
+--- RS / 5.1: add an extra signal (current: none; base t=+2.53): 50 variants (314 so far); reality check on this stage: best t=2.68, p=0.060
+   spy_below_vwap                                 n=  84 win= 59.5% ret/trade=+0.215% [+0.068,+0.371] avgR=+0.352 PF=2.07 t=+2.82 blocks+ 3/4
+   above_prior_low                                n= 213 win= 52.6% ret/trade=+0.128% [+0.039,+0.221] avgR=+0.172 PF=1.50 t=+2.66 blocks+ 4/4
+   above_vwap                                     n= 220 win= 52.3% ret/trade=+0.119% [+0.027,+0.213] avgR=+0.168 PF=1.48 t=+2.53 blocks+ 4/4
+   far_lod                                        n= 220 win= 52.3% ret/trade=+0.119% [+0.027,+0.213] avgR=+0.168 PF=1.48 t=+2.53 blocks+ 4/4
+   rs_pos                                         n= 220 win= 52.3% ret/trade=+0.119% [+0.027,+0.213] avgR=+0.168 PF=1.48 t=+2.53 blocks+ 4/4
+   rs_ge0.5                                       n= 220 win= 52.3% ret/trade=+0.119% [+0.027,+0.213] avgR=+0.168 PF=1.48 t=+2.53 blocks+ 4/4
+
+--- RS / 5.2: add an extra signal (current: spy_below_vwap; base t=+2.82): 49 variants (363 so far); reality check on this stage: best t=2.68, p=0.010
+   spy_below_vwap+volatile_stock                  n=  64 win= 60.9% ret/trade=+0.263% [+0.073,+0.445] avgR=+0.432 PF=2.26 t=+2.94 blocks+ 3/4
+   spy_below_vwap+above_vwap                      n=  84 win= 59.5% ret/trade=+0.215% [+0.068,+0.371] avgR=+0.352 PF=2.07 t=+2.82 blocks+ 3/4
+   spy_below_vwap+far_lod                         n=  84 win= 59.5% ret/trade=+0.215% [+0.068,+0.371] avgR=+0.352 PF=2.07 t=+2.82 blocks+ 3/4
+   spy_below_vwap+atr_high                        n=  84 win= 59.5% ret/trade=+0.215% [+0.068,+0.371] avgR=+0.352 PF=2.07 t=+2.82 blocks+ 3/4
+   spy_below_vwap+rs_pos                          n=  84 win= 59.5% ret/trade=+0.215% [+0.068,+0.371] avgR=+0.352 PF=2.07 t=+2.82 blocks+ 3/4
+   spy_below_vwap+rs_ge0.5                        n=  84 win= 59.5% ret/trade=+0.215% [+0.068,+0.371] avgR=+0.352 PF=2.07 t=+2.82 blocks+ 3/4
+
+--- RS / 5.3: add an extra signal (current: spy_below_vwap+volatile_stock; base t=+2.94): 48 variants (411 so far); reality check on this stage: best t=2.65, p=0.007
+   spy_below_vwap+volatile_stock+above_vwap       n=  64 win= 60.9% ret/trade=+0.263% [+0.073,+0.445] avgR=+0.432 PF=2.26 t=+2.94 blocks+ 3/4
+   spy_below_vwap+volatile_stock+far_lod          n=  64 win= 60.9% ret/trade=+0.263% [+0.073,+0.445] avgR=+0.432 PF=2.26 t=+2.94 blocks+ 3/4
+   spy_below_vwap+volatile_stock+atr_high         n=  64 win= 60.9% ret/trade=+0.263% [+0.073,+0.445] avgR=+0.432 PF=2.26 t=+2.94 blocks+ 3/4
+   spy_below_vwap+volatile_stock+rs_pos           n=  64 win= 60.9% ret/trade=+0.263% [+0.073,+0.445] avgR=+0.432 PF=2.26 t=+2.94 blocks+ 3/4
+   spy_below_vwap+volatile_stock+rs_ge0.5         n=  64 win= 60.9% ret/trade=+0.263% [+0.073,+0.445] avgR=+0.432 PF=2.26 t=+2.94 blocks+ 3/4
+   spy_below_vwap+volatile_stock+ret_open_pos     n=  64 win= 60.9% ret/trade=+0.263% [+0.073,+0.445] avgR=+0.432 PF=2.26 t=+2.94 blocks+ 3/4
+
+[RS] highest win rate with t>=1.5 and 3/4 blocks positive: spy_below_vwap+volatile_stock  n=  64 win= 60.9% ret/trade=+0.263% [+0.073,+0.445] avgR=+0.432 PF=2.26 t=+2.94
+
+[RS] overall reality check across all 312 variants with enough trades: best t=2.68, adjusted p=0.252
+
+=== RS: 411 variants evaluated in 17s ===
+FINAL FORMULA (design data): {"params": {"side": "leader", "t_dec": 120, "rs_min": 1.0, "need_vwap": true, "spy_state": "any", "trigger": "now", "t_end": 150, "stop": "vwap", "atr_k": 2.0, "t1_r": 1.5, "t2_r": 2.5, "frac": 0.5, "flat": 385, "ts_min": 180, "exit_mode": null, "rank_max": 0}, "filters": ["spy_below_vwap", "volatile_stock"], "stats": {"n": 64, "win": 60.9375, "mean": 0.2629907747784593, "r": 0.43158141857854304, "pf": 2.2570601184452066, "t": 2.9414895096614453, "lo": 0.0725303447304608, "hi": 0.44506969682161573, "days": 43}, "win_formula": {"params": {"side": "leader", "t_dec": 120, "rs_min": 1.0, "need_vwap": true, "spy_state": "any", "trigger": "now", "t_end": 150, "stop": "vwap", "atr_k": 2.0, "t1_r": 1.5, "t2_r": 2.5, "frac": 0.5, "flat": 385, "ts_min": 180, "exit_mode": null, "rank_max": 0}, "filters": ["spy_below_vwap", "volatile_stock"], "stats": {"n": 64, "win": 60.9375, "mean": 0.2629907747784593, "r": 0.43158141857854304, "pf": 2.2570601184452066, "t": 2.9414895096614453, "lo": 0.0725303447304608, "hi": 0.44506969682161573, "days": 43}, "blocks": [-0.11680233930015405, 0.2127632443798947, 0.2634507388999489, 0.40666289123879035], "name": "spy_below_vwap+volatile_stock"}, "rc_all": {"variants": 411, "best_t": 2.675390201637007, "p": 0.252}}
+   block means (acct ret per trade, %): [-0.117, 0.213, 0.263, 0.407]

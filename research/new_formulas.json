@@ -1,0 +1,350 @@
+{
+ "frozen": "2026-10-05",
+ "design": "2026-01-02..2026-07-31, nine main symbols",
+ "final_period": "2026-08-03..2026-10-02 (locked)",
+ "formulas": [
+  {
+   "id": "GF-core",
+   "family": "GF",
+   "params": {
+    "g_min": 1.0,
+    "g_max": 4.0,
+    "t_start": 60,
+    "t_end": 135,
+    "confirm": "none",
+    "stop": "lod",
+    "atr_k": 2.0,
+    "target": "fill_all",
+    "a": 0.5,
+    "t1_r": 1.5,
+    "t2_r": 2.5,
+    "rr_min": 0.0,
+    "flat": 240,
+    "ts_min": null,
+    "exit_mode": null
+   },
+   "filters": [],
+   "note": "chosen parameters, no extra signals"
+  },
+  {
+   "id": "GF-E",
+   "family": "GF",
+   "params": {
+    "g_min": 1.0,
+    "g_max": 4.0,
+    "t_start": 60,
+    "t_end": 135,
+    "confirm": "none",
+    "stop": "lod",
+    "atr_k": 2.0,
+    "target": "fill_all",
+    "a": 0.5,
+    "t1_r": 1.5,
+    "t2_r": 2.5,
+    "rr_min": 0.0,
+    "flat": 240,
+    "ts_min": null,
+    "exit_mode": null
+   },
+   "filters": [
+    "far_20d_high",
+    "volatile_stock",
+    "ema_down"
+   ],
+   "note": "expectancy-optimised, with extra signals chosen greedily"
+  },
+  {
+   "id": "GF-W",
+   "family": "GF",
+   "params": {
+    "g_min": 1.0,
+    "g_max": 4.0,
+    "t_start": 60,
+    "t_end": 135,
+    "confirm": "none",
+    "stop": "atr",
+    "atr_k": 2.5,
+    "target": "fill_split",
+    "a": 0.5,
+    "t1_r": 1.5,
+    "t2_r": 2.5,
+    "rr_min": 0.0,
+    "flat": 240,
+    "ts_min": null,
+    "exit_mode": null
+   },
+   "filters": [],
+   "note": "highest win rate among variants with t>=1.5 and 3/4 blocks positive"
+  },
+  {
+   "id": "GG-core",
+   "family": "GG",
+   "params": {
+    "g_min": 0.5,
+    "g_max": 99.0,
+    "pm_ratio_min": 0.0,
+    "trigger": "orh15",
+    "t_start": 5,
+    "t_end": 60,
+    "stop": "vwap",
+    "atr_k": 2.0,
+    "t1_r": 1.0,
+    "t2_r": 0,
+    "frac": 0.5,
+    "flat": 240,
+    "ts_min": null,
+    "exit_mode": "vwap"
+   },
+   "filters": [],
+   "note": "chosen parameters, no extra signals"
+  },
+  {
+   "id": "GG-E",
+   "family": "GG",
+   "params": {
+    "g_min": 0.5,
+    "g_max": 99.0,
+    "pm_ratio_min": 0.0,
+    "trigger": "orh15",
+    "t_start": 5,
+    "t_end": 60,
+    "stop": "vwap",
+    "atr_k": 2.0,
+    "t1_r": 1.0,
+    "t2_r": 0,
+    "frac": 0.5,
+    "flat": 240,
+    "ts_min": null,
+    "exit_mode": "vwap"
+   },
+   "filters": [
+    "rvol_ge1"
+   ],
+   "note": "expectancy-optimised, with extra signals chosen greedily"
+  },
+  {
+   "id": "GG-W",
+   "family": "GG",
+   "params": {
+    "g_min": 0.5,
+    "g_max": 99.0,
+    "pm_ratio_min": 0.0,
+    "trigger": "orh15",
+    "t_start": 5,
+    "t_end": 60,
+    "stop": "vwap",
+    "atr_k": 2.0,
+    "t1_r": 1.0,
+    "t2_r": 0,
+    "frac": 0.5,
+    "flat": 240,
+    "ts_min": null,
+    "exit_mode": "vwap"
+   },
+   "filters": [
+    "below_prior_high"
+   ],
+   "note": "highest win rate among variants with t>=1.5 and 3/4 blocks positive"
+  },
+  {
+   "id": "RS-core",
+   "family": "RS",
+   "params": {
+    "side": "leader",
+    "t_dec": 120,
+    "rs_min": 1.0,
+    "need_vwap": true,
+    "spy_state": "any",
+    "trigger": "now",
+    "t_end": 150,
+    "stop": "vwap",
+    "atr_k": 2.0,
+    "t1_r": 1.5,
+    "t2_r": 2.5,
+    "frac": 0.5,
+    "flat": 385,
+    "ts_min": 180,
+    "exit_mode": null,
+    "rank_max": 0
+   },
+   "filters": [],
+   "note": "chosen parameters, no extra signals"
+  },
+  {
+   "id": "RS-E",
+   "family": "RS",
+   "params": {
+    "side": "leader",
+    "t_dec": 120,
+    "rs_min": 1.0,
+    "need_vwap": true,
+    "spy_state": "any",
+    "trigger": "now",
+    "t_end": 150,
+    "stop": "vwap",
+    "atr_k": 2.0,
+    "t1_r": 1.5,
+    "t2_r": 2.5,
+    "frac": 0.5,
+    "flat": 385,
+    "ts_min": 180,
+    "exit_mode": null,
+    "rank_max": 0
+   },
+   "filters": [
+    "spy_below_vwap",
+    "volatile_stock"
+   ],
+   "note": "expectancy-optimised, with extra signals chosen greedily"
+  },
+  {
+   "id": "LH-core",
+   "family": "LH",
+   "params": {
+    "t_ent": 360,
+    "stop": "pct",
+    "atr_k": 3.0,
+    "stop_pct": 0.8,
+    "t1_r": 1.0,
+    "frac": 0.5,
+    "flat": 385,
+    "ts_min": null,
+    "exit_mode": null,
+    "need_ret_open": null,
+    "need_first30": null,
+    "need_vwap": null,
+    "near_hod": null,
+    "spy_up": false,
+    "rs_min": null,
+    "oversold": 2.0
+   },
+   "filters": [],
+   "note": "chosen parameters, no extra signals"
+  },
+  {
+   "id": "LH-E",
+   "family": "LH",
+   "params": {
+    "t_ent": 360,
+    "stop": "pct",
+    "atr_k": 3.0,
+    "stop_pct": 0.8,
+    "t1_r": 1.0,
+    "frac": 0.5,
+    "flat": 385,
+    "ts_min": null,
+    "exit_mode": null,
+    "need_ret_open": null,
+    "need_first30": null,
+    "need_vwap": null,
+    "near_hod": null,
+    "spy_up": false,
+    "rs_min": null,
+    "oversold": 2.0
+   },
+   "filters": [
+    "above_prior_low",
+    "below_prior_high",
+    "far_hod"
+   ],
+   "note": "expectancy-optimised, with extra signals chosen greedily"
+  },
+  {
+   "id": "ref-GF-plain",
+   "family": "GF",
+   "params": {
+    "g_min": 1.0,
+    "g_max": 99.0,
+    "t_start": 15,
+    "t_end": 15,
+    "confirm": "none",
+    "stop": "lod",
+    "atr_k": 2.0,
+    "target": "fill_split",
+    "a": 0.5,
+    "t1_r": 1.5,
+    "t2_r": 2.5,
+    "rr_min": 0.0,
+    "flat": 385,
+    "ts_min": null,
+    "exit_mode": null
+   },
+   "filters": [],
+   "reference": true,
+   "note": "plain idea: buy gap-downs >=1% at 09:45"
+  },
+  {
+   "id": "ref-GG-plain",
+   "family": "GG",
+   "params": {
+    "g_min": 1.0,
+    "g_max": 99.0,
+    "pm_ratio_min": 0.0,
+    "trigger": "orh5",
+    "t_start": 5,
+    "t_end": 60,
+    "stop": "orl",
+    "atr_k": 2.0,
+    "t1_r": 1.5,
+    "t2_r": 3.0,
+    "frac": 0.5,
+    "flat": 385,
+    "ts_min": null,
+    "exit_mode": null
+   },
+   "filters": [],
+   "reference": true,
+   "note": "plain idea: buy gap-ups >=1% on the 5-minute opening-range break"
+  },
+  {
+   "id": "ref-RS-plain",
+   "family": "RS",
+   "params": {
+    "side": "leader",
+    "t_dec": 60,
+    "rs_min": 0.5,
+    "need_vwap": true,
+    "spy_state": "any",
+    "trigger": "now",
+    "t_end": 150,
+    "stop": "vwap",
+    "atr_k": 2.0,
+    "t1_r": 1.5,
+    "t2_r": 2.5,
+    "frac": 0.5,
+    "flat": 385,
+    "ts_min": 90,
+    "exit_mode": null,
+    "rank_max": 0
+   },
+   "filters": [],
+   "reference": true,
+   "note": "plain idea: buy a stock >=0.5% ahead of SPY at 10:30"
+  },
+  {
+   "id": "ref-LH-momentum",
+   "family": "LH",
+   "params": {
+    "t_ent": 330,
+    "stop": "atr",
+    "atr_k": 3.0,
+    "stop_pct": 0.5,
+    "t1_r": 0.0,
+    "frac": 0.5,
+    "flat": 385,
+    "ts_min": null,
+    "exit_mode": null,
+    "need_ret_open": 0.6,
+    "need_first30": null,
+    "need_vwap": true,
+    "near_hod": null,
+    "spy_up": null,
+    "rs_min": null,
+    "oversold": null
+   },
+   "filters": [],
+   "reference": true,
+   "note": "plain idea: last-hour momentum, up >=0.6% and above VWAP at 15:00"
+  }
+ ]
+}
