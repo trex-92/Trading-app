@@ -406,3 +406,47 @@ def test_unknown_symbols_and_named_history_errors(tmp_path):
     assert b.unknown_symbols(["SPY", "ABBY", "KO"]) == ["ABBY"] and b.unknown_symbols(["SPY"]) == []
     with pytest.raises(Exception, match="ABBY: invalid symbol"):
         b.intraday_bars("ABBY", date(2026, 9, 1), date(2026, 9, 30))
+
+
+def _extended_hours_endpoint(days_available, cap=1000):
+    """Like _observed_history_endpoint, but every day has 960 bars (04:01-20:00, US with extended hours), as on the real account."""
+    from datetime import date, datetime, timedelta
+    from bot.intraday.bars import NY
+    all_rows = []
+    for d in sorted(days_available):
+        t0 = datetime(d.year, d.month, d.day, 4, 1, tzinfo=NY)
+        for m in range(960):
+            ts = t0 + timedelta(minutes=m)
+            all_rows.append((ts, {"time_key": int(ts.timestamp() * 1000), "open": 100, "high": 100.1, "low": 99.9, "close": 100, "volume": 1}))
+    calls = []
+
+    def h(req):
+        s_, e_ = date.fromisoformat(req.url.params["start"]), date.fromisoformat(req.url.params["end"])
+        calls.append((s_, e_))
+        return ok_sim({"kline_list": [r for ts, r in all_rows if s_ <= ts.date() < e_][:cap], "next_time": None})
+
+    return h, calls
+
+
+def test_the_last_day_of_a_range_is_cached_with_full_extended_hours_days(tmp_path):
+    from datetime import date
+    from bot.intraday.data import business_days
+    wanted = business_days(date(2026, 9, 1), date(2026, 9, 11))
+    h, calls = _extended_hours_endpoint(wanted)
+    b = broker(tmp_path, h, cache_dir=tmp_path / "cache")
+    bars = b.intraday_bars("SPY", date(2026, 9, 1), date(2026, 9, 11))
+    assert len(bars) == 960 * len(wanted)
+    assert sorted(p.name for p in (tmp_path / "cache").glob("*.json")) == [f"US_SPY_{d.isoformat()}.json" for d in wanted]   # incl. Sep 11
+    n = len(calls)
+    b.intraday_bars("SPY", date(2026, 9, 1), date(2026, 9, 11))
+    assert len(calls) == n                                                     # nothing was missing, so no request
+
+
+def test_a_single_extended_hours_day_is_cached(tmp_path):
+    from datetime import date
+    h, calls = _extended_hours_endpoint([date(2026, 9, 2)])
+    b = broker(tmp_path, h, cache_dir=tmp_path / "cache")
+    assert len(b.intraday_bars("SPY", date(2026, 9, 2), date(2026, 9, 2))) == 960
+    assert (tmp_path / "cache" / "US_SPY_2026-09-02.json").exists()
+    b.intraday_bars("SPY", date(2026, 9, 2), date(2026, 9, 2))
+    assert len(calls) == 1
