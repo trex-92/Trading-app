@@ -22,7 +22,7 @@ export async function fetchConfigs(): Promise<StrategyConfig[]> {
 export async function saveConfig(
   strategy: StrategyCode,
   market: MarketCode,
-  fields: Partial<Pick<StrategyConfig, 'budget' | 'enabled'>>,
+  fields: Partial<Pick<StrategyConfig, 'budget' | 'enabled' | 'params'>>,
 ): Promise<void> {
   const user_id = await userId();
   const { error } = await supabase

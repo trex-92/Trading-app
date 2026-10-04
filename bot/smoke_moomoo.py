@@ -2,6 +2,7 @@
 
     python -m bot.smoke_moomoo              # accounts, cash, positions, prices, history, SG/MY data (no orders)
     python -m bot.smoke_moomoo --order      # also place ONE 1-share simulated market order (SIMULATE only)
+    python -m bot.smoke_moomoo --fractional # does the simulator accept 0.1 share orders? (places one far-from-market order, then cancels it)
     python -m bot.smoke_moomoo --probe MY.1155 SG.D05    # check specific symbol codes (put --probe last)
 """
 import json
@@ -102,7 +103,18 @@ def symbol_lookup(broker, codes):
     return "\n       " + "\n       ".join(lines)
 
 
-def run_checks(broker, order=False, out=print, probes=None):
+def fractional_check(broker):
+    """Place a 0.1-share buy at half the market price (it cannot fill), see whether the simulator accepts it, then cancel it."""
+    last = broker.last_price("AAPL")
+    o = broker.place_order(Order("AAPL", "BUY", 0.1, price=round(last * 0.5, 2)))
+    if o.status == "REJECTED":
+        return f"REJECTED: {o.reason}. Fractional shares are NOT available on the simulator: leave 'Allow fractional shares' off."
+    time.sleep(1)
+    broker.cancel_order(o.id)
+    return f"ACCEPTED (order {o.id} for 0.1 share, then cancelled). The simulator takes fractional quantities."
+
+
+def run_checks(broker, order=False, out=print, probes=None, fractional=False):
     out(f"       account id: {broker.acc_id}")
     step("cash", broker.cash, out)
     step("positions", lambda: [(p.symbol, p.qty, p.avg_price, p.last_price) for p in broker.positions()], out)
@@ -115,6 +127,8 @@ def run_checks(broker, order=False, out=print, probes=None):
     step("Symbol lookup (is the code right, and what is the board lot?)", lambda: symbol_lookup(broker, probes or DEFAULT_PROBES), out)
     step("Singapore (SGX) data", lambda: market_probe(broker, SG, "ES3"), out)
     step("Malaysia (Bursa) data", lambda: market_probe(broker, MY, "1155"), out)
+    if fractional:
+        step("Fractional shares on the simulated account", lambda: fractional_check(broker), out)
     if order:
         o = step("place 1 share AAPL BUY via the adapter (marketable limit, simulated)",
                  lambda: broker.place_order(Order("AAPL", "BUY", 1)), out)
@@ -138,7 +152,7 @@ def main() -> int:
     if not broker:
         return 1
     probes = sys.argv[sys.argv.index("--probe") + 1:] if "--probe" in sys.argv else None
-    run_checks(broker, order="--order" in sys.argv, probes=[p.upper() for p in probes] if probes else None)
+    run_checks(broker, order="--order" in sys.argv, fractional="--fractional" in sys.argv, probes=[p.upper() for p in probes] if probes else None)
     broker.close()
     return 0
 

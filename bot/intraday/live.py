@@ -23,7 +23,8 @@ from .bars import NY, Bar
 from .calendar import Calendar
 from .context import DayContext, TickerState
 from .market import US, Market, explain_error
-from .params import SharedParams
+from .params import SharedParams, apply_overrides
+from .qty import clean
 from .risk import DayRisk, DrawdownGuard, cost_per_share, size_position
 from .runner import base_shared, build
 
@@ -190,14 +191,14 @@ class LiveRunner:
         for t in self.universe:
             q = held.get(t, 0)
             mine = self.pos and self.pos["ticker"] == t
-            if mine and q == self.pos["remaining"]:
+            if mine and abs(q - self.pos["remaining"]) < 1e-6:
                 self.log(f"[live] reconcile: resuming {t} position of {q} shares")
-            elif mine and q == 0:
+            elif mine and abs(q) < 1e-9:
                 self.log(f"[live] reconcile: saved {t} position no longer at broker; cleared")
                 self.pos = None
             elif mine:
                 self.halt_reason = f"reconcile mismatch on {t}: saved {self.pos['remaining']} shares, broker has {q}"
-            elif q != 0:
+            elif abs(q) > 1e-9:
                 self.halt_reason = f"unexpected {q} {t} at broker (not opened by this engine); flatten it, then restart"
         if self.halt_reason:
             self.log(f"[live] HALTED ENTRIES: {self.halt_reason}")
@@ -212,8 +213,12 @@ class LiveRunner:
         except Exception as e:  # noqa: BLE001
             self.log(f"[live] could not read strategy configs: {e}")
             return
-        new = {c: {"enabled": bool(r.get("enabled")), "budget": float(r.get("budget") or 0), "params": r.get("params") or {}}
-               for c, r in rows.items()}
+        new = {}
+        for c, r in rows.items():
+            params = dict(r.get("params") or {})
+            shared_over = params.pop("shared", {}) or {}   # {"max_trade_notional": 100, "allow_fractional": true}
+            new[c] = {"enabled": bool(r.get("enabled")), "budget": float(r.get("budget") or 0), "params": params,
+                      "shared": shared_over}
         if new != self.cfg:
             self.cfg = new
             if self.risk:  # daily-loss limit is a % of the capital currently allocated to enabled strategies
@@ -311,8 +316,13 @@ class LiveRunner:
             self.log(f"[live] {sig.strategy} {sig.ticker} signal skipped: {why}")
             return
         cfg = self.cfg[sig.strategy]
+        try:   # per-strategy limits set in the app: max money per trade, fractional shares (re-validated against the risk ceiling)
+            shared = apply_overrides(self.shared, cfg.get("shared")).validate()
+        except ValueError as e:
+            self.log(f"[live] {sig.strategy} {sig.ticker} signal skipped: invalid limits in the app ({e})")
+            return
         equity = min(cfg["budget"], self.broker.equity())
-        sizing = size_position(equity, sig.entry, sig.stop, self.shared, self.guard.risk_pct)
+        sizing = size_position(equity, sig.entry, sig.stop, shared, self.guard.risk_pct)
         if sizing["skip"]:
             self.log(f"[live] {sig.strategy} {sig.ticker} signal skipped: {sizing['skip']}")
             return
@@ -329,12 +339,12 @@ class LiveRunner:
         self.risk.trades += 1
         self.lock[sig.ticker] = sig.family
         self.pos = {"strategy": sig.strategy, "ticker": sig.ticker, "entry_ts": now.isoformat(), "entry_day": now.date().isoformat(),
-                    "entry": avg, "planned_entry": sig.entry, "stop_since": now.replace(second=0, microsecond=0).isoformat(), "shares": int(filled), "remaining": int(filled),
+                    "entry": avg, "planned_entry": sig.entry, "stop_since": now.replace(second=0, microsecond=0).isoformat(), "shares": clean(filled), "remaining": clean(filled), "unit": shared.fractional_step if shared.allow_fractional else shared.lot_size,
                     "stop": sig.stop, "stop0": sig.stop, "t1": sig.t1, "t2": sig.t2, "t1_frac": sig.t1_frac, "t1_done": False,
                     "time_stop_minutes": sig.time_stop_minutes, "time_stop_always": sig.time_stop_always,
                     "flat_min": sig.flat_min, "entry_elapsed": sig.elapsed, "regime": {**sig.regime, "sizing": sizing}, "exits": []}
         self._save_state()
-        self.log(f"[live] ENTERED {sig.strategy} {sig.ticker} {int(filled)} sh @ {avg:.2f} stop {sig.stop:.2f} T1 {sig.t1:.2f}")
+        self.log(f"[live] ENTERED {sig.strategy} {sig.ticker} {clean(filled)} sh @ {avg:.2f} stop {sig.stop:.2f} T1 {sig.t1:.2f}")
 
     def _entry_block(self, now, sig) -> str | None:
         if not self.enabled:
@@ -384,9 +394,9 @@ class LiveRunner:
         elif last <= pos["stop"]:
             self._exit(pos["remaining"], "breakeven_stop" if pos["t1_done"] else "stop", last)
         elif not pos["t1_done"] and last >= pos["t1"]:
-            lot = self.shared.lot_size
-            half = int(math.floor(pos["shares"] * pos["t1_frac"] / lot)) * lot
-            qty = pos["remaining"] if half < lot else half  # cannot split a single board lot
+            unit = pos.get("unit") or self.shared.lot_size
+            half = clean(math.floor(pos["shares"] * pos["t1_frac"] / unit + 1e-9) * unit)
+            qty = pos["remaining"] if half < unit else half  # cannot split a single lot / minimum step
             self._exit(qty, "target1", last)
             if self.pos:
                 self.pos["t1_done"], self.pos["stop"] = True, self.pos["entry"]
@@ -394,20 +404,20 @@ class LiveRunner:
         elif pos["t1_done"] and pos["t2"] and last >= pos["t2"]:
             self._exit(pos["remaining"], "target2", last)
 
-    def _exit(self, qty: int, reason: str, last: float) -> None:
+    def _exit(self, qty, reason: str, last: float) -> None:
         pos = self.pos
-        qty = min(int(qty), pos["remaining"])
+        qty = clean(min(qty, pos["remaining"]))
         sold, value = 0, 0.0
         for buf in SELL_BUFFERS:
-            if qty - sold <= 0:
+            if qty - sold <= 1e-9:
                 break
-            o = self.broker.place_order(Order(pos["ticker"], "SELL", qty - sold, price=round(last * (1 - buf), 2), reason=reason))
+            o = self.broker.place_order(Order(pos["ticker"], "SELL", clean(qty - sold), price=round(last * (1 - buf), 2), reason=reason))
             if o.status == "REJECTED":
                 self.halt_reason = f"exit order rejected ({o.reason}); entries halted until restart"
                 self.log(f"[live] KILL SWITCH: {self.halt_reason}")
                 continue
             filled, avg = self._wait_fill(o.id)
-            sold += int(filled)
+            sold = clean(sold + filled)
             value += filled * avg
             if sold < qty:
                 try:
@@ -416,11 +426,11 @@ class LiveRunner:
                     pass
         if sold:
             pos["exits"].append({"ts": self.clock().isoformat(), "qty": sold, "price": round(value / sold, 4), "reason": reason})
-            pos["remaining"] -= sold
-        if sold < qty:
+            pos["remaining"] = clean(pos["remaining"] - sold)
+        if sold < qty - 1e-9:
             self.log(f"[live] ERROR: could only sell {sold}/{qty} {pos['ticker']} ({reason}); will retry next cycle")
         self.log(f"[live] EXIT {pos['strategy']} {pos['ticker']} {sold} sh ({reason})")
-        if pos["remaining"] <= 0:
+        if pos["remaining"] <= 1e-9:
             self._finish_trade()
         else:
             self._save_state()
@@ -433,7 +443,7 @@ class LiveRunner:
         trade = {"date": pos["entry_day"], "ticker": pos["ticker"], "strategy": pos["strategy"], "mode": "paper",
                  "market": self.market.code,
                  "entry_ts": pos["entry_ts"], "entry": round(pos["entry"], 4), "stop": pos["stop0"], "shares": pos["shares"],
-                 "exits": pos["exits"], "costs": round(costs, 2), "pnl": round(net, 2),
+                 "exits": pos["exits"], "costs": round(costs, 4), "pnl": round(net, 4),
                  "r": round(net / (pos["shares"] * (pos["planned_entry"] - pos["stop0"])), 3), "regime": pos["regime"]}
         self.risk.record(net)
         base = sum(c["budget"] for c in self.cfg.values() if c["enabled"]) or pos["shares"] * pos["entry"]

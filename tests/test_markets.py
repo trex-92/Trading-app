@@ -107,7 +107,7 @@ def test_lot_rounding_and_single_lot_full_exit():
     assert s["shares"] == 10_000 and s["shares"] % 100 == 0
     s = size_position(5_000, 10.0, 9.9, p)               # by risk 500, by notional 500 -> exactly 5 lots
     assert s["shares"] == 500
-    assert size_position(900, 10.0, 9.0, p)["skip"] == "shares < 1"   # cannot afford one lot of 100 (needs RM1,000)
+    assert size_position(900, 10.0, 9.0, p)["skip"] == "shares < 100"   # cannot afford one lot of 100 (needs RM1,000)
 
 
 # ---- calendar per market -----------------------------------------------------------------------------------------

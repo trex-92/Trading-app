@@ -367,3 +367,27 @@ def test_a_failed_run_keeps_the_days_it_already_downloaded(tmp_path):
     assert sorted({x.ts.date() for x in bars}) == wanted
     first_resume_start = calls[before][0]
     assert first_resume_start > date(2026, 9, 1)                # resumed after the saved days, not from the beginning
+
+
+def test_fractional_quantities_are_sent_and_read_correctly(tmp_path):
+    seen = {}
+
+    def h(req):
+        p = req.url.path
+        if p.endswith("/snapshot"):
+            return ok_sim({"snapshot_list": [{"last_price": 743.0}]})
+        if p.endswith("/orders") and req.method == "POST":
+            seen.update(__import__("json").loads(req.content))
+            return ok_sim({"order_id": "5"})
+        if p.endswith("/positions"):
+            return ok_sim({"positions": [{"symbol": "QQQ", "qty": "0.13", "cost_price": "743", "cur_price": "744", "pstn_type": 0},
+                                         {"symbol": "SPY", "qty": "100.0", "cost_price": "1", "cur_price": "1", "pstn_type": 0}]})
+        raise AssertionError(p)
+
+    b = broker(tmp_path, h)
+    b.place_order(Order("QQQ", "BUY", 0.13, price=743.0))
+    assert seen["qty"] == "0.13"
+    b.place_order(Order("SPY", "BUY", 100.0, price=1.0))
+    assert seen["qty"] == "100"                                         # never "100.0"
+    pos = {p.symbol: p.qty for p in b.positions()}
+    assert pos == {"QQQ": 0.13, "SPY": 100} and isinstance(pos["SPY"], int)

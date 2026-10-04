@@ -21,8 +21,9 @@ export const MARKETS: Record<MarketCode, {
 };
 export const MARKET_CODES: MarketCode[] = ['US', 'SG', 'MY'];
 
+/** Whole units for large amounts, cents below 1,000 so a $100 account does not show "$0". */
 export const money = (n: number, currency = 'USD') =>
-  n.toLocaleString(undefined, { style: 'currency', currency, maximumFractionDigits: 0 });
+  n.toLocaleString(undefined, { style: 'currency', currency, maximumFractionDigits: Math.abs(n) < 1000 ? 2 : 0 });
 
 /** The balance a market's budgets must fit inside: US = the Moomoo simulated account, SG/MY = the paper balance you set. */
 export function accountLimit(market: MarketCode, botEquity: number | null, markets: MarketConfig[]): number | null {
@@ -210,4 +211,40 @@ export function funnelRows(funnel: Record<string, Record<string, number>> | unde
     }
   }
   return rows;
+}
+
+export type SharedLimits = { max_trade_notional?: number; allow_fractional?: boolean };
+
+/** The per-strategy limits stored in strategy_configs.params.shared. */
+export function limitsOf(cfg: Pick<StrategyConfig, 'params'> | undefined): SharedLimits {
+  const shared = (cfg?.params as { shared?: SharedLimits } | undefined)?.shared ?? {};
+  const out: SharedLimits = {};
+  if (Number(shared.max_trade_notional) > 0) out.max_trade_notional = Number(shared.max_trade_notional);
+  if (shared.allow_fractional) out.allow_fractional = true;
+  return out;
+}
+
+/** New params object with the limits changed. Unset/false values are removed so the bot falls back to its defaults. */
+export function withLimits(params: Record<string, unknown> | undefined, change: SharedLimits): Record<string, unknown> {
+  const next: SharedLimits = { ...limitsOf({ params: params ?? {} }), ...change };
+  if (!(Number(next.max_trade_notional) > 0)) delete next.max_trade_notional;
+  if (!next.allow_fractional) delete next.allow_fractional;
+  const { shared: _old, ...rest } = (params ?? {}) as { shared?: unknown };
+  return Object.keys(next).length ? { ...rest, shared: next } : rest;
+}
+
+/** Empty = no cap. Otherwise a positive amount, no larger than the budget (a larger cap could never matter). */
+export function parseMaxTrade(raw: string, budget: number): { value: number; error: string | null } {
+  const text = raw.trim().replace(/,/g, '');
+  if (text === '') return { value: 0, error: null };
+  if (!/^\d+(\.\d{1,2})?$/.test(text) || Number(text) <= 0) return { value: 0, error: 'Enter an amount like 100, or leave empty for no cap' };
+  if (budget > 0 && Number(text) > budget) return { value: Number(text), error: 'The cap is larger than the budget, so it would never apply' };
+  return { value: Number(text), error: null };
+}
+
+export function limitsText(l: SharedLimits, currency: string): string {
+  const parts = [];
+  if (l.max_trade_notional) parts.push(`at most ${money(l.max_trade_notional, currency)} per trade`);
+  if (l.allow_fractional) parts.push('fractional shares allowed');
+  return parts.join(', ');
 }

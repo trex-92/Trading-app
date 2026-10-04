@@ -5,7 +5,7 @@ import { Card, ThemedText } from '@/components/themed';
 import { Row } from '@/features/bot/components';
 import { fetchBacktestResult } from '@/lib/providers/strategies';
 import { useTheme } from '@/hooks/use-theme';
-import { MARKETS, defaultRange, equityBars, fmtR, funnelRows, money, parseTickers, validateRange } from '../calculations';
+import { MARKETS, defaultRange, equityBars, fmtR, funnelRows, limitsOf, limitsText, money, parseTickers, validateRange } from '../calculations';
 import { useStrategies } from '../StrategiesContext';
 import type { BacktestResult, BacktestRun, MarketCode, StrategyCode } from '../types';
 
@@ -37,7 +37,9 @@ export function BacktestCard({ code, market }: { code: StrategyCode; market: Mar
     setBusy(true);
     setError(null);
     try {
-      await runBacktest(code, { market, tickers: t.tickers, start, end, budget: budgetNum });
+      const limits = limitsOf(mine);
+      await runBacktest(code, { market, tickers: t.tickers, start, end, budget: budgetNum,
+        ...(Object.keys(limits).length ? { overrides: { shared: limits } } : {}) });
       setSelected(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -61,6 +63,7 @@ export function BacktestCard({ code, market }: { code: StrategyCode; market: Mar
       <Field label={`Starting capital in ${cur} (default: this strategy's budget${mine ? `, ${money(Number(mine.budget), cur)}` : ''})`}>
         <TextInput style={input} value={budget} onChangeText={setBudget} keyboardType="decimal-pad" placeholder={mine ? String(mine.budget) : '100000'} placeholderTextColor={theme.textSecondary} />
       </Field>
+      {limitsText(limitsOf(mine), cur) !== '' && <ThemedText type="small" themeColor="textSecondary">Using your limits: {limitsText(limitsOf(mine), cur)}.</ThemedText>}
       {problem && <ThemedText type="small" themeColor="warning">{problem}</ThemedText>}
       {error && <ThemedText type="small" themeColor="negative">{error}</ThemedText>}
       <Pressable style={[styles.button, { backgroundColor: theme.accent, opacity: problem || busy || inFlight ? 0.4 : 1 }]}

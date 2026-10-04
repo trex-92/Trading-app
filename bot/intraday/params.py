@@ -35,6 +35,9 @@ class SharedParams:
     allow_short: bool = False
     cost_pct_round_trip: float = 0.0     # % of notional (stamp duty, clearing, brokerage); set by the market profile
     lot_size: int = 1                    # shares per board lot; set by the market profile
+    max_trade_notional: float = 0.0      # optional cap on the money in ONE trade, in the market currency (0 = no cap)
+    allow_fractional: bool = False       # US only: trade fractions of a share (needs broker support; test with the smoke script)
+    fractional_step: float = 0.01        # smallest fraction of a share used when allow_fractional is on
     # Drawdown breakers, measured from the peak of the strategy capital (budget + realized P&L).
     breaker1_pct: float = 6.0            # at this drawdown, risk per trade drops to breaker1_risk_pct
     breaker1_risk_pct: float = 0.5
@@ -48,6 +51,10 @@ class SharedParams:
                              f"{self.risk_hard_ceiling_pct}; refusing to start")
         if self.lot_size < 1:
             raise ValueError("lot_size must be at least 1")
+        if self.max_trade_notional < 0:
+            raise ValueError("max_trade_notional cannot be negative")
+        if self.allow_fractional and not 0 < self.fractional_step <= 1:
+            raise ValueError("fractional_step must be between 0 and 1")
         if not 0 < self.breaker1_risk_pct <= self.risk_per_trade_pct or not 0 < self.breaker1_pct < self.breaker2_pct:
             raise ValueError("breakers need 0 < breaker1_pct < breaker2_pct and 0 < breaker1_risk_pct <= risk_per_trade_pct")
         if self.risk_per_trade_pct <= 0 or self.max_notional_pct <= 0:

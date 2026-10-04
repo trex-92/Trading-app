@@ -369,3 +369,54 @@ def test_small_budget_is_flagged():
     assert any(n.startswith("WARNING: the budget is small") for n in res.notes)
     ok = run([Fixed([40])], {45: (100, 100.1, 98.9, 99.2)})
     assert not any("budget is small" in n for n in ok.notes)
+
+
+# ---- fractional shares and the per-trade cap -----------------------------------------------------------------------
+def test_qty_helpers_keep_whole_numbers_whole():
+    from bot.intraday.qty import clean, fmt
+    assert clean(100.0) == 100 and isinstance(clean(100.0), int) and clean(0.30000000000000004) == 0.3
+    assert fmt(100.0) == "100" and fmt(0.13) == "0.13" and fmt(0.00001) == "0.00001" and fmt(2.5) == "2.5"
+
+
+def test_small_budget_trades_a_fraction_of_a_share_only_when_allowed():
+    whole = SharedParams()
+    frac = SharedParams(allow_fractional=True)
+    s = size_position(100, 743.0, 741.5, whole)
+    assert s["skip"] == "shares < 1"                                    # $100 cannot buy one $743 share
+    s = size_position(100, 743.0, 741.5, frac)                          # 1% risk would be 0.67 sh; the 1x cap allows 0.1346
+    assert s["shares"] == 0.13 and s["binding"] == "notional" and s["skip"] is None
+    assert size_position(100000, 100.0, 99.0, frac)["shares"] == 1000    # big budgets are unchanged, still an int
+
+
+def test_max_trade_notional_caps_one_position_and_is_reported():
+    p = SharedParams(max_trade_notional=100.0, allow_fractional=True)
+    s = size_position(10_000, 500.0, 499.0, p)                           # risk would allow 100 sh; the $100 cap allows 0.2
+    assert s["shares"] == 0.2 and s["binding"] == "per-trade cap" and s["shares_by_trade_cap"] == 0.2
+    whole = size_position(10_000, 50.0, 49.0, SharedParams(max_trade_notional=120.0))   # whole shares: floor(120/50) = 2
+    assert whole["shares"] == 2 and isinstance(whole["shares"], int)
+    assert size_position(10_000, 500.0, 499.0, SharedParams(max_trade_notional=100.0))["skip"] == "shares < 1"
+    with pytest.raises(ValueError):
+        SharedParams(max_trade_notional=-1).validate()
+    with pytest.raises(ValueError):
+        SharedParams(allow_fractional=True, fractional_step=0).validate()
+
+
+def test_fractional_backtest_splits_the_position_and_reconciles_exactly():
+    flat = {i: (500, 500.05, 499.95, 500) for i in range(390)}
+    over = {**flat, 45: (500, 501.6, 499.9, 501.5), 46: (501.4, 501.5, 499.9, 500.2)}
+    data = {"SPY": mkday(D1, flat) + mkday(D2, over)}
+    res = Backtester([Fixed([40])], SharedParams(allow_fractional=True), 100).run(data)
+    t = res.trades[0]
+    assert t["shares"] == 0.2
+    assert [(e["reason"], e["qty"]) for e in t["exits"]] == [("target1", 0.1), ("breakeven_stop", 0.1)]
+    assert sum(e["qty"] for e in t["exits"]) == t["shares"]
+    assert t["pnl"] == pytest.approx(0.1 * 1.5 - 0.02 * 0.2)             # half at +1.5, half at breakeven, minus fees
+    assert res.funnel["engine"]["entries_filled"] == 1
+
+
+def test_per_trade_cap_in_a_backtest_keeps_every_position_small():
+    res = run([Fixed([40])], {45: (100, 100.1, 98.9, 99.2)},
+              shared=SharedParams(max_trade_notional=500.0), budget=100000)
+    t = res.trades[0]
+    assert t["shares"] == 5 and t["regime"]["sizing"]["binding"] == "per-trade cap"      # $500 / $100
+    assert t["pnl"] == pytest.approx(-5 * 1.0 - 0.02 * 5) and t["r"] == pytest.approx(-1.02)   # R is unchanged by the cap

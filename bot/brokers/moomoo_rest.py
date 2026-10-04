@@ -20,6 +20,7 @@ import httpx
 
 from ..intraday.bars import NY
 from ..intraday.market import US, Market
+from ..intraday.qty import clean, fmt as fmt_qty
 from ..models import Order, Position
 from .base import Broker
 from ..moomoo_oauth import BASE, AuthError, OAuthSession, TokenStore
@@ -278,11 +279,11 @@ class MoomooRestBroker(Broker):
     def positions(self):
         if self.real:
             rows = self._call("GET", f"/api/v1.0/accounts/{self.acc_id}/positions") or []
-            return [Position(r["code"].split(".", 1)[-1], int(float(r["qty"])), float(r["cost_price"]),
+            return [Position(r["code"].split(".", 1)[-1], clean(r["qty"]), float(r["cost_price"]),
                              float(r["nominal_price"]))
                     for r in rows if r.get("position_side", "LONG") == "LONG" and float(r["qty"])]
         rows = self._sim_position_rows()
-        return [Position(r["symbol"], int(float(r["qty"])), float(r["cost_price"]), float(r["cur_price"]))
+        return [Position(r["symbol"], clean(r["qty"]), float(r["cost_price"]), float(r["cur_price"]))
                 for r in rows if r.get("pstn_type", 0) == 0 and float(r["qty"])]
 
     def _sim_position_rows(self) -> list[dict]:
@@ -320,12 +321,12 @@ class MoomooRestBroker(Broker):
         try:
             price = self._limit_price(order)
             if self.real:
-                body = {"code": self._code(order.symbol), "qty": str(order.qty), "side": order.side,
+                body = {"code": self._code(order.symbol), "qty": fmt_qty(order.qty), "side": order.side,
                         "order_type": "LIMIT", "price": f"{price:.4f}", "time_in_force": "DAY", "session": "RTH"}
                 d = self._call("POST", f"/api/v1.0/accounts/{self.acc_id}/orders", json=body)
             else:
                 body = {"market": self.sim_market, "symbol": order.symbol, "order_type": 1,
-                        "order_side": 1 if order.side == "BUY" else 2, "qty": str(order.qty), "price": f"{price:.2f}"}
+                        "order_side": 1 if order.side == "BUY" else 2, "qty": fmt_qty(order.qty), "price": f"{price:.2f}"}
                 d = self._call("POST", f"/api/v1.0/sim-trade/{self.acc_id}/orders", json=body)
         except MoomooError as e:
             order.status = "REJECTED"

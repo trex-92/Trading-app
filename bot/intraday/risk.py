@@ -3,6 +3,7 @@ import math
 from dataclasses import dataclass
 
 from .params import SharedParams
+from .qty import clean
 
 
 def cost_per_share(entry: float, p: SharedParams) -> float:
@@ -20,12 +21,16 @@ def size_position(equity: float, entry: float, stop: float, p: SharedParams, ris
     out["risk_pct"] = risk_pct
     by_risk = equity * risk_pct / 100 / rps
     by_notional = equity * p.max_notional_pct / 100 / entry
-    lot = p.lot_size
-    shares = math.floor(min(by_risk, by_notional) / lot) * lot   # whole board lots only
-    out.update(shares_by_risk=round(by_risk, 2), shares_by_notional=round(by_notional, 2), shares=shares,
-               binding="notional" if by_notional < by_risk else "risk")
-    if shares < 1:
-        return {**out, "skip": "shares < 1"}
+    by_cap = p.max_trade_notional / entry if p.max_trade_notional > 0 else float("inf")
+    unit = p.fractional_step if p.allow_fractional else p.lot_size   # smallest tradable amount
+    raw = min(by_risk, by_notional, by_cap)
+    shares = clean(math.floor(raw / unit + 1e-9) * unit)
+    out.update(shares_by_risk=round(by_risk, 4), shares_by_notional=round(by_notional, 4), shares=shares,
+               binding="per-trade cap" if by_cap < min(by_risk, by_notional) else ("notional" if by_notional < by_risk else "risk"))
+    if p.max_trade_notional > 0:
+        out["shares_by_trade_cap"] = round(by_cap, 4)
+    if shares < unit:
+        return {**out, "skip": f"shares < {unit:g}"}
     cost_ps = cost_per_share(entry, p)
     cost = shares * cost_ps
     out["est_round_trip_cost"] = round(cost, 2)

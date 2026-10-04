@@ -21,7 +21,7 @@ def summarize(trades: list[dict], start_equity: float) -> dict:
     days = {t["date"] for t in trades}
     return {
         **out,
-        "total_pnl": round(sum(pnl), 2), "return_pct": round(sum(pnl) / start_equity * 100, 2),
+        "total_pnl": round(sum(pnl), 4), "return_pct": round(sum(pnl) / start_equity * 100, 2),
         "win_rate_pct": round(len(wins) / n * 100, 1), "avg_r": round(mean_r, 3),
         "expectancy_r_95ci": None if n < 2 else [round(mean_r - 1.96 * se, 3), round(mean_r + 1.96 * se, 3)],
         "profit_factor": round(sum(wins) / -sum(losses), 2) if losses else None,
@@ -29,5 +29,5 @@ def summarize(trades: list[dict], start_equity: float) -> dict:
         "avg_loss_r": round(statistics.fmean([r for r in rs if r < 0]), 3) if any(r < 0 for r in rs) else None,
         "max_drawdown_pct": round(max_dd, 2), "days_traded": len(days),
         "avg_minutes_held": round(statistics.fmean(t["minutes_held"] for t in trades), 1),
-        "total_costs": round(sum(t["costs"] for t in trades), 2),
+        "total_costs": round(sum(t["costs"] for t in trades), 4),
     }

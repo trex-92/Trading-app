@@ -75,12 +75,20 @@ class FakeSync:
     def push_engine_status(self, s, market='US'): self.status.append(s)
 
 
-def make(tmp_path, over=None, at=(40,), budget=100000, enabled=True, broker_cls=FakeBroker, fx=None, **kw):
+def make(tmp_path, over=None, at=(40,), budget=100000, enabled=True, broker_cls=FakeBroker, fx=None,
+         configs_shared=None, seen=None, **kw):
     clock = Clock()
     broker = broker_cls({"SPY": mkday(D1) + mkday(D2, over)}, clock)
     sync, logs = FakeSync(), []
-    cfg = lambda: [{"strategy": "A", "enabled": enabled, "budget": budget, "params": {}}]  # noqa: E731
-    kw.setdefault("strategy_factory", lambda codes, ov: [Fixed(at, name="A", **(fx or {}))])
+    params = {"shared": configs_shared} if configs_shared is not None else {}
+    cfg = lambda: [{"strategy": "A", "enabled": enabled, "budget": budget, "params": dict(params)}]  # noqa: E731
+
+    def factory(codes, ov):
+        if seen is not None:
+            seen["params"] = ov.get("A", {})
+        return [Fixed(at, name="A", **(fx or {}))]
+
+    kw.setdefault("strategy_factory", factory)
     runner = LiveRunner(broker, sync, universe=["SPY"], configs=cfg, calendar_path=str(tmp_path / "cal.json"),
                         state_path=str(tmp_path / "state.json"), journal_path=str(tmp_path / "j.jsonl"), clock=lambda: clock.now,
                         sleep=lambda s: None, log=logs.append, fill_timeout=0.01, **kw)
@@ -285,3 +293,39 @@ def test_live_engine_matches_the_backtest_on_the_same_prices(tmp_path):
     assert sync.trades and [sig(t) for t in sync.trades] == [sig(t) for t in bt]
     assert sync.trades[0]["r"] == pytest.approx(bt[0]["r"], abs=0.1)
     assert r.pos is None
+
+
+def _fx_runner(tmp_path, shared, **kw):
+    seen = {}
+    r, b, sync, clock, logs = make(tmp_path, configs_shared=shared, seen=seen, **kw)
+    return r, b, sync, clock, logs, seen
+
+
+def test_app_limits_reach_sizing_and_fractional_positions_are_managed_to_the_end(tmp_path):
+    over = {45: (100, 101.7, 99.9, 101.6), 46: (101.6, 101.6, 99.9, 100.0)}
+    r, b, sync, clock, logs, seen = _fx_runner(tmp_path, {"max_trade_notional": 50, "allow_fractional": True}, over=over)
+    drive(r, clock, b, 0, 47)
+    assert b.placed[0] == ("BUY", 0.5, 100.0)                             # $50 cap at $100 = half a share
+    t = sync.trades[0]
+    assert t["shares"] == 0.5 and [(e["reason"], e["qty"]) for e in t["exits"]] == [("target1", 0.25), ("breakeven_stop", 0.25)]
+    assert r.pos is None
+    assert "shared" not in seen["params"]                                 # limits are not passed on as strategy parameters
+
+
+def test_invalid_app_limits_skip_the_signal_instead_of_trading(tmp_path):
+    r, b, sync, clock, logs, seen = _fx_runner(tmp_path, {"max_trade_notional": -5})
+    drive(r, clock, b, 0, 45)
+    assert b.placed == [] and any("invalid limits" in m for m in logs)
+
+
+def test_restart_resumes_a_fractional_position(tmp_path):
+    r, b, sync, clock, logs, seen = _fx_runner(tmp_path, {"max_trade_notional": 50, "allow_fractional": True},
+                                               over={45: (100, 100.1, 98.8, 98.9)})
+    drive(r, clock, b, 0, 42)
+    assert r.pos and r.pos["remaining"] == 0.5
+    r2 = LiveRunner(b, sync, universe=["SPY"], configs=lambda: [{"strategy": "A", "enabled": True, "budget": 100000, "params": {}}],
+                    calendar_path=str(tmp_path / "cal.json"), state_path=str(tmp_path / "state.json"),
+                    journal_path=str(tmp_path / "j.jsonl"), clock=lambda: clock.now, sleep=lambda s: None, log=logs.append,
+                    fill_timeout=0.01, strategy_factory=lambda codes, ov: [Fixed([], name="A")])
+    drive(r2, clock, b, 43, 47)
+    assert r2.halt_reason is None and sync.trades and sync.trades[0]["shares"] == 0.5

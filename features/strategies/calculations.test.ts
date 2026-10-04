@@ -1,5 +1,5 @@
 import {
-  accountLimit, allocation, funnelRows, parseSymbols, defaultRange, engineSummary, downsample, equityBars, isIsoDate, journalProgress, parseTickers, validateBudget, validateRange,
+  accountLimit, allocation, funnelRows, limitsOf, limitsText, money, parseMaxTrade, withLimits, parseSymbols, defaultRange, engineSummary, downsample, equityBars, isIsoDate, journalProgress, parseTickers, validateBudget, validateRange,
 } from './calculations';
 import type { JournalTrade, StrategyConfig } from './types';
 
@@ -176,5 +176,39 @@ describe('funnelRows', () => {
   it('copes with older results that have no funnel and unknown counters', () => {
     expect(funnelRows(undefined, 'B')).toEqual([]);
     expect(funnelRows({ B: { some_new_counter: 3 } }, 'B')[0]).toMatchObject({ label: 'some new counter', lost: false });
+  });
+});
+
+describe('trade limits', () => {
+  it('shows cents for small amounts and whole units for large ones', () => {
+    expect(money(0.15, 'USD')).toMatch(/0\.15/);
+    expect(money(12.5, 'USD')).toMatch(/12\.50/);
+    expect(money(1500, 'USD')).not.toMatch(/\./);
+  });
+
+  it('reads and writes limits without disturbing other params', () => {
+    expect(limitsOf(undefined)).toEqual({});
+    expect(limitsOf({ params: { shared: { max_trade_notional: '100', allow_fractional: true, junk: 1 } } as never })).toEqual({
+      max_trade_notional: 100, allow_fractional: true,
+    });
+    const a = withLimits({ t1_r: 2 }, { max_trade_notional: 100 });
+    expect(a).toEqual({ t1_r: 2, shared: { max_trade_notional: 100 } });
+    const b = withLimits(a, { allow_fractional: true });
+    expect(b).toEqual({ t1_r: 2, shared: { max_trade_notional: 100, allow_fractional: true } });
+    expect(withLimits(b, { max_trade_notional: 0, allow_fractional: false })).toEqual({ t1_r: 2 });   // cleared: back to defaults
+  });
+
+  it('validates the per-trade cap', () => {
+    expect(parseMaxTrade('', 1000)).toEqual({ value: 0, error: null });
+    expect(parseMaxTrade('100', 1000)).toEqual({ value: 100, error: null });
+    expect(parseMaxTrade('1,000', 1000).error).toBeNull();
+    expect(parseMaxTrade('1001', 1000).error).toMatch(/larger than the budget/);
+    expect(parseMaxTrade('abc', 1000).error).toMatch(/Enter an amount/);
+    expect(parseMaxTrade('0', 1000).error).toMatch(/Enter an amount/);
+  });
+
+  it('describes the limits in words', () => {
+    expect(limitsText({}, 'USD')).toBe('');
+    expect(limitsText({ max_trade_notional: 100, allow_fractional: true }, 'USD')).toMatch(/at most \$100\.00 per trade, fractional shares allowed/);
   });
 });

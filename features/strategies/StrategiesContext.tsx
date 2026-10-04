@@ -4,6 +4,7 @@ import {
   deleteBacktest, fetchBacktests, fetchConfigs, fetchEngines, fetchJournal, fetchMarkets, queueBacktest, saveConfig, saveMarket,
   subscribeToStrategies,
 } from '@/lib/providers/strategies';
+import { withLimits, type SharedLimits } from './calculations';
 import type { BacktestRun, EngineRow, JournalTrade, MarketCode, MarketConfig, StrategyCode, StrategyConfig } from './types';
 
 type State = {
@@ -16,6 +17,7 @@ type State = {
   refresh: () => Promise<void>;
   saveBudget: (s: StrategyCode, market: MarketCode, budget: number) => Promise<void>;
   setEnabled: (s: StrategyCode, market: MarketCode, enabled: boolean) => Promise<void>;
+  saveLimits: (s: StrategyCode, market: MarketCode, change: SharedLimits) => Promise<void>;
   saveMarketConfig: (market: MarketCode, fields: Partial<Pick<MarketConfig, 'enabled' | 'symbols' | 'paper_balance'>>) => Promise<void>;
   runBacktest: (s: StrategyCode, params: BacktestRun['params']) => Promise<void>;
   removeRun: (id: string) => Promise<void>;
@@ -71,6 +73,12 @@ export function StrategiesProvider({ children }: { children: ReactNode }) {
     await refresh();
   }, [refresh]);
 
+  const saveLimits = useCallback(async (s: StrategyCode, market: MarketCode, change: SharedLimits) => {
+    const current = configs.find((c) => c.strategy === s && (c.market ?? 'US') === market);
+    await saveConfig(s, market, { params: withLimits(current?.params, change) });
+    await refresh();
+  }, [configs, refresh]);
+
   const saveMarketConfig = useCallback(async (market: MarketCode, fields: Parameters<State['saveMarketConfig']>[1]) => {
     await saveMarket(market, fields);
     await refresh();
@@ -87,7 +95,7 @@ export function StrategiesProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   return (
-    <Ctx.Provider value={{ configs, runs, journal, markets, engines, error, refresh, saveBudget, setEnabled, saveMarketConfig, runBacktest, removeRun }}>
+    <Ctx.Provider value={{ configs, runs, journal, markets, engines, error, refresh, saveBudget, setEnabled, saveLimits, saveMarketConfig, runBacktest, removeRun }}>
       {children}
     </Ctx.Provider>
   );

@@ -68,6 +68,17 @@ trading minutes only. 5-minute bars never straddle the lunch break.
    naive timestamps are read as Malaysia time).
 8. The mega-cap / ETF suggestions (`ES3` for SG, `1155` for MY) are only sample symbols, not recommendations.
 
+## Small accounts: fractional shares and a per-trade cap
+Two optional settings per strategy and market (on each strategy tab, under Budget): **Max per trade** (an amount in the
+market currency that caps the money in any one position) and **Allow fractional shares** (US only, steps of 0.01).
+They apply to backtests and to the paper engine. With a $100 budget, 1% risk is $1 and a stock at $743 gets 0.13 shares
+instead of "cannot afford one". R-multiples are unaffected by the cap; dollar P&L scales with the size.
+- Whether Moomoo's *simulated* account accepts fractional orders is **not verified**: run
+  `python -m bot.smoke_moomoo --fractional` (it places a 0.1-share order far from the market and cancels it). If it is
+  rejected, leave the switch off: the engine would otherwise halt on "order rejected".
+- Real-account fractional orders may have extra restrictions (order types, hours); check before any live use.
+- P&L is now kept to 4 decimals and the app shows cents below 1,000, so tiny accounts are not rounded to zero.
+
 ## 1. Problems found in the spec (most important first)
 
 1. **"Entry, stop and target as one bracket order" is not possible on this broker.**

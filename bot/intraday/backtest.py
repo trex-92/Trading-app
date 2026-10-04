@@ -19,6 +19,7 @@ from .bars import Bar
 from .calendar import Calendar
 from .context import DayContext, TickerState
 from .market import US, Market
+from .qty import clean
 from .params import SharedParams
 from .risk import DayRisk, DrawdownGuard, cost_per_share, size_position
 from .stats import summarize
@@ -198,9 +199,9 @@ class Backtester:
             self._exit(pos.remaining, pos.stop, ctx.now, "breakeven_stop" if pos.t1_done else "stop")
             return
         if not pos.t1_done and bar.high >= pos.sig.t1:
-            lot = self.shared.lot_size
-            half = int(math.floor(pos.shares * pos.sig.t1_frac / lot)) * lot
-            qty = pos.remaining if half < lot else half  # cannot split a single board lot
+            unit = self.shared.fractional_step if self.shared.allow_fractional else self.shared.lot_size
+            half = clean(math.floor(pos.shares * pos.sig.t1_frac / unit + 1e-9) * unit)
+            qty = pos.remaining if half < unit else half  # cannot split a single lot / minimum step
             self._exit(qty, max(pos.sig.t1, bar.open), ctx.now, "target1")
             if self.pos is None:
                 return
@@ -221,9 +222,9 @@ class Backtester:
 
     def _exit(self, qty, price, ts, reason):
         pos = self.pos
-        qty = min(qty, pos.remaining)
+        qty = clean(min(qty, pos.remaining))
         pos.exits.append({"ts": ts.isoformat(), "qty": qty, "price": round(price, 4), "reason": reason})
-        pos.remaining -= qty
+        pos.remaining = clean(pos.remaining - qty)
         if pos.remaining > 0:
             return
         sig = pos.sig
@@ -240,7 +241,7 @@ class Backtester:
             "date": self.day.isoformat(), "ticker": sig.ticker, "strategy": sig.strategy,
             "entry_ts": pos.entry_ts.isoformat(), "entry": round(pos.entry, 4), "planned_entry": sig.entry,
             "stop": sig.stop, "t1": round(sig.t1, 4), "t2": sig.t2 and round(sig.t2, 4), "shares": pos.shares,
-            "exits": pos.exits, "costs": round(costs, 2), "pnl": round(net, 2), "r": round(r, 3),
+            "exits": pos.exits, "costs": round(costs, 4), "pnl": round(net, 4), "r": round(r, 3),
             "minutes_held": self.cur_elapsed - pos.entry_elapsed, "market": self.market.code, "regime": sig.regime})
-        self.curve.append({"ts": ts.isoformat(), "equity": round(self.equity, 2)})
+        self.curve.append({"ts": ts.isoformat(), "equity": round(self.equity, 4)})
         self.pos = None
