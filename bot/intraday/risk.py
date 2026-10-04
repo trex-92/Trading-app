@@ -7,8 +7,14 @@ from .qty import clean
 
 
 def cost_per_share(entry: float, p: SharedParams) -> float:
-    """All-in round-trip cost per share: fixed per-share part plus a percentage of the price."""
+    """Round-trip cost per share that scales with size: fixed per-share part plus a percentage of the price.
+    The fixed fee per ORDER (p.cost_per_order) does not scale with size and is added separately (see trade_costs)."""
     return p.cost_per_share_round_trip + entry * p.cost_pct_round_trip / 100
+
+
+def trade_costs(entry: float, shares: float, p: SharedParams, orders: int = 2) -> float:
+    """Total cost of a finished trade: size-based costs plus the fixed fee on each of its `orders` (entry + every exit fill)."""
+    return cost_per_share(entry, p) * shares + p.cost_per_order * orders
 
 
 def size_position(equity: float, entry: float, stop: float, p: SharedParams, risk_pct: float | None = None) -> dict:
@@ -31,8 +37,8 @@ def size_position(equity: float, entry: float, stop: float, p: SharedParams, ris
         out["shares_by_trade_cap"] = round(by_cap, 4)
     if shares < unit:
         return {**out, "skip": f"shares < {unit:g}"}
-    cost_ps = cost_per_share(entry, p)
-    cost = shares * cost_ps
+    cost = trade_costs(entry, shares, p)          # a round trip is at least two orders, so the fixed fee counts twice
+    cost_ps = cost / shares
     out["est_round_trip_cost"] = round(cost, 2)
     if cost_ps > p.max_cost_pct_of_1R / 100 * rps:
         return {**out, "skip": f"cost {cost_ps:.4f}/share = {cost_ps / rps * 100:.0f}% of 1R (max {p.max_cost_pct_of_1R}%)"}

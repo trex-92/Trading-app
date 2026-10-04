@@ -6,7 +6,7 @@ Fill model (deliberately conservative, all assumptions are written down here and
  * Exits are checked on 1m bars. If one bar touches both the stop and a target, the STOP is assumed to hit first.
  * A gap through the stop fills at the bar open (worse than the stop). Targets are limit orders: fill at
    max(target, open). After T1 the stop moves to breakeven and is first checked on the NEXT bar.
- * Costs: `cost_per_share_round_trip` is charged on every share. Spread/quote filters need bid/ask history, which bar
+ * Costs: `cost_per_share_round_trip` is charged on every share, `cost_pct_round_trip` on the notional and `cost_per_order` on every order. Spread/quote filters need bid/ask history, which bar
    data does not have, so they are NOT applied in backtests.
 """
 import math
@@ -21,7 +21,7 @@ from .context import DayContext, TickerState
 from .market import US, Market
 from .qty import clean
 from .params import SharedParams
-from .risk import DayRisk, DrawdownGuard, cost_per_share, size_position
+from .risk import DayRisk, DrawdownGuard, cost_per_share, size_position, trade_costs
 from .stats import summarize
 from .strategies import Signal, Strategy
 
@@ -119,8 +119,8 @@ class Backtester:
         notes = [f"Market: {self.market.name}, {self.market.currency}, lot size {sh.lot_size}.",
                  "Untested starting defaults; a backtest is not a forecast. Paper trade 100 trades per strategy before any live money.",
                  "Fills: next-bar marketable limit; stop assumed first when a bar touches stop and target; spread filter not applied (no bid/ask in bars).",
-                 f"Costs assumed (round trip): {sh.cost_per_share_round_trip:.3f} per share + {sh.cost_pct_round_trip:.2f}% of notional. "
-                 "These are placeholders; use your real fee schedule."]
+                 f"Costs assumed (round trip): {sh.cost_per_share_round_trip:.3f} per share + {sh.cost_pct_round_trip:.2f}% of notional + "
+                 f"{sh.cost_per_order:.2f} per order (entry and every exit). Check them against your real fee schedule."]
         if not self.calendar.configured:
             notes.append("WARNING: no event calendar configured. FOMC, CPI/NFP and half days were NOT excluded.")
         if len(days) <= self.warmup_days:
@@ -229,7 +229,7 @@ class Backtester:
             return
         sig = pos.sig
         gross = sum((e["price"] - pos.entry) * e["qty"] for e in pos.exits)
-        costs = cost_per_share(pos.entry, self.shared) * pos.shares
+        costs = trade_costs(pos.entry, pos.shares, self.shared, orders=1 + len(pos.exits))   # entry order + one per exit fill
         net = gross - costs
         r = net / (pos.shares * (sig.entry - sig.stop))
         self.equity += net

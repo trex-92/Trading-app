@@ -426,3 +426,63 @@ def test_hod_blocking_is_opt_in_and_breakdown_sums():
     from bot.intraday.params import ScalpParams
     assert ScalpParams().levels_include_hod is False
     assert apply_overrides(ScalpParams(), {"levels_include_hod": True}).levels_include_hod is True
+
+
+# ---- Scalp experiment switches (defaults = the spec) -------------------------------------------------------------------
+def _scalp_run(p, days=None):
+    days = days or business_days(date(2026, 9, 1), date(2026, 9, 25))
+    return Backtester([Scalp(p)], SharedParams(), 100000).run(synthetic_history(days, ["trend"], ["SPY", "QQQ"]))
+
+
+def test_scalp_defaults_keep_the_spec_exits():
+    p = ScalpParams()
+    assert p.t1_frac == 0.5 and p.require_vwap_rising and p.require_emas_rising and p.require_or_break
+    hit = [t for t in _scalp_run(p).trades if any(e["reason"] == "target1" for e in t["exits"])]
+    assert hit and all(len(t["exits"]) >= 2 and t["exits"][0]["qty"] == t["shares"] // 2 for t in hit)   # half off at T1
+
+
+def test_scalp_t1_frac_one_takes_everything_off_at_target1():
+    res = _scalp_run(ScalpParams(t1_frac=1.0))
+    hit = [t for t in res.trades if any(e["reason"] == "target1" for e in t["exits"])]
+    assert hit, "the synthetic trend should reach target 1 at least once"
+    for t in hit:
+        assert len(t["exits"]) == 1 and t["exits"][0]["qty"] == t["shares"]
+
+
+def test_scalp_regime_switches_only_remove_checks():
+    spec = _scalp_run(ScalpParams()).funnel["A"]
+    relaxed = _scalp_run(ScalpParams(require_emas_rising=False, require_vwap_rising=False, require_or_break=False)).funnel["A"]
+    assert not any(k in relaxed for k in ("regime_failed_emas_rising", "regime_failed_vwap_rising", "regime_failed_broke_opening_range"))
+    assert relaxed.get("regime_minutes", 0) >= spec.get("regime_minutes", 0)
+
+
+# ---- cost model: percentage commission plus a fixed fee on every order (Moomoo US) ------------------------------------------
+FIXED_FEE = SharedParams(cost_per_share_round_trip=0.0, cost_pct_round_trip=0.0, cost_per_order=1.0, max_cost_pct_of_1R=1e9)
+
+
+def test_fixed_fee_is_charged_on_the_entry_and_on_every_exit_order():
+    stop_out = run([Fixed([40])], {45: (100, 100.1, 98.9, 99.2)}, shared=FIXED_FEE).trades[0]
+    assert len(stop_out["exits"]) == 1 and stop_out["costs"] == pytest.approx(2.0)                 # entry + stop
+    partial = run([Fixed([40])], {45: (100, 101.6, 99.9, 101.5), 46: (101.4, 101.5, 99.9, 100.2)}, shared=FIXED_FEE).trades[0]
+    assert len(partial["exits"]) == 2 and partial["costs"] == pytest.approx(3.0)                   # entry + target 1 + breakeven exit
+    assert partial["pnl"] == pytest.approx(500 * 1.5 - 3.0)
+
+
+def test_commission_percentage_and_fixed_fee_add_up():
+    p = SharedParams(cost_per_share_round_trip=0.0, cost_pct_round_trip=0.06, cost_per_order=0.99, max_cost_pct_of_1R=1e9)
+    t = run([Fixed([40])], {45: (100, 100.1, 98.9, 99.2)}, shared=p).trades[0]
+    assert t["costs"] == pytest.approx(1000 * 100.0 * 0.06 / 100 + 2 * 0.99)                      # 0.06% of $100,000 + two orders
+
+
+def test_fee_rule_counts_the_fixed_fee_so_small_trades_are_skipped():
+    p = SharedParams(cost_per_share_round_trip=0.0, cost_pct_round_trip=0.0, cost_per_order=0.99)
+    assert size_position(10_000, 100.0, 99.0, p)["skip"] is None            # $1.98 on a $10,000 trade, 1R = $100
+    small = size_position(1_000, 100.0, 99.0, p)                            # $1.98 on 10 shares with 1R = $10 -> 20% of 1R
+    assert small["skip"] and "cost" in small["skip"] and small["est_round_trip_cost"] == pytest.approx(1.98)
+
+
+def test_us_profile_uses_the_moomoo_schedule():
+    from bot.intraday.market import US
+    from bot.intraday.runner import base_shared
+    sh = base_shared(US)
+    assert (sh.cost_per_share_round_trip, sh.cost_pct_round_trip, sh.cost_per_order) == (0.0, 0.06, 0.99)

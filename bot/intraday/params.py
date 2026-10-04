@@ -34,6 +34,7 @@ class SharedParams:
     cost_per_share_round_trip: float = 0.02
     allow_short: bool = False
     cost_pct_round_trip: float = 0.0     # % of notional (stamp duty, clearing, brokerage); set by the market profile
+    cost_per_order: float = 0.0          # fixed fee on EVERY order (the entry and each exit fill), in the market currency; set by the market profile
     lot_size: int = 1                    # shares per board lot; set by the market profile
     max_trade_notional: float = 0.0      # optional cap on the money in ONE trade, in the market currency (0 = no cap)
     allow_fractional: bool = False       # US only: trade fractions of a share (needs broker support; test with the smoke script)
@@ -79,10 +80,15 @@ class ScalpParams:  # Strategy A
     max_stop_pct: float = 0.25
     t1_r: float = 1.5
     t2_r: float = 2.5
+    t1_frac: float = 0.5                # share of the position sold at T1; 1.0 = take everything off at T1
     time_stop_minutes: int = 25
     flat_before_close_min: int = 5     # ASSUMPTION: spec gives A no end-of-day exit (US 15:55)
     pullback_max_age_bars: int = 10    # ASSUMPTION: spec does not say how long a pullback stays valid
     levels_include_hod: bool = False   # spec's level list has no HOD; True = also block T1 on a high-of-day in the way
+    # Regime conditions from the spec. All True = the spec. Switching one off is a spec change, for experiments only.
+    require_vwap_rising: bool = True
+    require_emas_rising: bool = True
+    require_or_break: bool = True
 
 
 @dataclass(frozen=True)

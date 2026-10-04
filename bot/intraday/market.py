@@ -28,6 +28,7 @@ class Market:
     sim_account: bool = False             # Moomoo offers a simulated trading account for this market
     cost_pct_round_trip: float = 0.0      # PLACEHOLDER: % of notional, both sides, all fees
     cost_per_share_round_trip: float = 0.0
+    cost_per_order: float = 0.0           # fixed fee on every order (entry and each exit fill)
     stale_seconds: float = 10.0           # quote older than this = feed stale; thinly traded markets need longer
 
     # ---- session arithmetic --------------------------------------------------------------------------
@@ -89,7 +90,10 @@ def _t(s: str) -> time:
 
 US = Market("US", "United States", ZoneInfo("America/New_York"), ((time(9, 30), time(16, 0)),), "US.", "USD", 1,
             ("SPY", "QQQ"), r"^[A-Z][A-Z.]{0,5}$", extended_hours=True, sim_account=True,
-            cost_per_share_round_trip=0.02, stale_seconds=10.0)
+            # Moomoo (Malaysia site), US stocks and ETFs, as supplied by the account holder: commission 0.03% of the amount on each
+            # order (minimum $0.01, ignored here) = 0.06% round trip, plus a $0.99 platform fee per order. Exchange and regulatory fees
+            # (SEC, TAF, settlement) are NOT included. Override in data/markets.json if the schedule changes.
+            cost_pct_round_trip=0.06, cost_per_order=0.99, stale_seconds=10.0)
 SG = Market("SG", "Singapore (SGX)", ZoneInfo("Asia/Singapore"), ((time(9, 0), time(12, 0)), (time(13, 0), time(17, 0))),
             "SG.", "SGD", 100, ("ES3",), r"^[A-Z0-9][A-Z0-9.]{0,9}$", cost_pct_round_trip=0.15, stale_seconds=60.0)
 MY = Market("MY", "Malaysia (Bursa)", ZoneInfo("Asia/Kuala_Lumpur"), ((time(9, 0), time(12, 30)), (time(14, 30), time(17, 0))),
@@ -113,7 +117,7 @@ def get_market(code: str, overrides_path: str | Path | None = "data/markets.json
                 fields[k] = ZoneInfo(v)
             elif k in ("lot_size",):
                 fields[k] = int(v)
-            elif k in ("cost_pct_round_trip", "cost_per_share_round_trip", "stale_seconds"):
+            elif k in ("cost_pct_round_trip", "cost_per_share_round_trip", "cost_per_order", "stale_seconds"):
                 fields[k] = float(v)
             elif k in ("default_symbols",):
                 fields[k] = tuple(v)

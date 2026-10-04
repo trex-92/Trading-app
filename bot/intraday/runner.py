@@ -25,7 +25,7 @@ def defaults() -> dict:
 def base_shared(market: Market = US) -> SharedParams:
     """Shared risk parameters with the market's lot size and (placeholder) cost model applied."""
     return replace(SharedParams(), cost_per_share_round_trip=market.cost_per_share_round_trip,
-                   cost_pct_round_trip=market.cost_pct_round_trip, lot_size=market.lot_size)
+                   cost_pct_round_trip=market.cost_pct_round_trip, cost_per_order=market.cost_per_order, lot_size=market.lot_size)
 
 
 def build(codes: list[str], overrides: dict | None, market: Market = US):
