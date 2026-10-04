@@ -1,4 +1,5 @@
 import os
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -51,3 +52,9 @@ class Config:
             raise SystemExit("SMA_FAST must be < SMA_SLOW")
         if not (self.supabase_url and self.supabase_service_key and self.supabase_user_id):
             raise SystemExit("Set SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY and SUPABASE_USER_ID")
+        try:
+            uuid.UUID(self.supabase_user_id)
+        except ValueError:
+            raise SystemExit(
+                f"SUPABASE_USER_ID must be the user's UUID (Supabase dashboard > Authentication > Users > ID "
+                f"column, looks like 123e4567-e89b-12d3-a456-426614174000), got {self.supabase_user_id!r}") from None
