@@ -30,7 +30,8 @@ supabase/migrations/   schema + RLS + realtime publication
 | Supabase sync + command channel (`bot/sync.py`) | written; unit-tested with a fake, **not run against a live project** |
 | Migration | written, **not applied** |
 | Expo app: auth gate, Face ID lock, 5 tabs, realtime + 15s fallback poll | typechecks, 5 jest tests, web bundle builds and the login route renders; **not tried on a device or against Supabase** |
-| Moomoo adapter | written against `moomoo-api`; **untested against a real OpenD** |
+| Moomoo REST adapter (`BROKER=moomoo_rest`, no OpenD) + OAuth 2.1/PKCE login | written from the docs, 9 tests against a mocked HTTP layer; **never called the live API** |
+| Moomoo OpenD adapter (`BROKER=moomoo`) | written against `moomoo-api`; untested |
 | Webull adapter | skeleton only |
 
 ## Setup
@@ -44,8 +45,16 @@ supabase/migrations/   schema + RLS + realtime publication
    ```
 4. `npm test`, `npm run typecheck`, `pytest`.
 
-Moomoo: run OpenD, `pip install -e '.[moomoo]'`, `BROKER=moomoo`. Stay on `TRADE_ENV=SIMULATE` until proven;
-real trading needs both `TRADE_ENV=REAL` and `ALLOW_LIVE=yes`.
+Moomoo (REST, recommended, no OpenD): `BROKER=moomoo_rest`, then once on a machine with a browser:
+`python -m bot.moomoo_login` (registers an OAuth client, prints an authorize URL, catches the callback on
+`localhost:60355`, saves tokens to `~/.config/trading-bot/moomoo_tokens.json`, mode 0600). Access tokens last 2h and are
+refreshed automatically; the refresh token is not rotated. Re-run the login if refresh ever fails.
+`SIMULATE` uses Moomoo's `/sim-trade` endpoints; `REAL` uses `/accounts/...` and needs `ALLOW_LIVE=yes` plus
+`TRADE_ENV=REAL`. REAL orders that moomoo wants confirmed (-2100/-2101) are never auto-confirmed; they show as REJECTED
+with the confirm id.
+Moomoo (OpenD SDK): run OpenD, `pip install -e '.[moomoo]'`, `BROKER=moomoo`.
+Open questions to check on first run: refresh-token lifetime (not documented), and whether `/sim-trade` accepts the
+Bearer token (the docs' curl examples show no auth header).
 
 iOS device build follows the Personal Assistant flow (`npx expo prebuild`, bundle id `com.trex921.trading-monitor`,
 then xcodebuild/devicectl, or `eas build`). Android package: `com.trex921.tradingmonitor`.
