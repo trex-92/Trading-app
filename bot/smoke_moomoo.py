@@ -42,6 +42,7 @@ def main() -> int:
     print(f"       account id: {broker.acc_id}")
     step("cash", broker.cash)
     step("positions", lambda: [(p.symbol, p.qty, p.avg_price, p.last_price) for p in broker.positions()])
+    print(f"       positions market filter that worked: {getattr(broker, '_pos_market', 'n/a')}")
     step("last price AAPL", lambda: broker.last_price("AAPL"))
     step("last 5 daily closes AAPL", lambda: broker.history("AAPL", 5))
     if "--order" in sys.argv:

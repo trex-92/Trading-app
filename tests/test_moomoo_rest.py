@@ -149,3 +149,19 @@ def test_account_discovery(tmp_path):
         return ok_trd({"accounts": [{"account_id": 5}, {"account_id": 6}]})
     with pytest.raises(Exception, match="MOOMOO_ACC_ID"):
         broker(tmp_path, real, env="REAL", acc="")
+
+
+def test_sim_positions_falls_back_to_market_filter(tmp_path):
+    seen = []
+
+    def h(req):
+        seen.append(req.url.params.get("market"))
+        if req.url.params.get("market") != "100":
+            return httpx.Response(200, json={"ret_code": -5, "ret_msg": "backend business error"})
+        return ok_sim({"positions": [{"symbol": "AAPL", "qty": "1", "cost_price": "1", "cur_price": "2"}]})
+
+    b = broker(tmp_path, h)
+    b.sim_market = 100
+    assert [p.symbol for p in b.positions()] == ["AAPL"]
+    b.positions()
+    assert seen == ["100", "100"]  # remembered the working filter

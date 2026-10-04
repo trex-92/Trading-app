@@ -107,9 +107,26 @@ class MoomooRestBroker(Broker):
             return [Position(r["code"].split(".", 1)[-1], int(float(r["qty"])), float(r["cost_price"]),
                              float(r["nominal_price"]))
                     for r in rows if r.get("position_side", "LONG") == "LONG" and float(r["qty"])]
-        rows = (self._call("GET", f"/api/v1.0/sim-trade/{self.acc_id}/positions") or {}).get("positions", [])
+        rows = self._sim_position_rows()
         return [Position(r["symbol"], int(float(r["qty"])), float(r["cost_price"]), float(r["cur_price"]))
                 for r in rows if r.get("pstn_type", 0) == 0 and float(r["qty"])]
+
+    def _sim_position_rows(self) -> list[dict]:
+        """The service answers the unfiltered call with a backend error for some sim accounts (observed
+        on the US margin sim account, market 100), so try with the market filter and remember what works."""
+        order = getattr(self, "_pos_market", None)
+        candidates = [order] if order is not None else [self.sim_market, US_MARKET_ID, None]
+        last: Exception | None = None
+        for m in dict.fromkeys(candidates):
+            try:
+                data = self._call("GET", f"/api/v1.0/sim-trade/{self.acc_id}/positions",
+                                  params={"market": m} if m is not None else None) or {}
+            except MoomooError as e:
+                last = e
+                continue
+            self._pos_market = m
+            return data.get("positions", [])
+        raise last or MoomooError("positions unavailable")
 
     def cash(self):
         if self.real:
