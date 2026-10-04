@@ -108,7 +108,7 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                TextField("Server URL", text: vm.$baseURL).textInputAutocapitalization(.never).keyboardType(.URL)
+                TextField("Server URL", text: $vm.baseURL).textInputAutocapitalization(.never).keyboardType(.URL)
                 SecureField("API token", text: $vm.token)
             }
             .navigationTitle("Settings")
