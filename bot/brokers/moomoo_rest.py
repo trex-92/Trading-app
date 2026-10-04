@@ -124,6 +124,11 @@ class MoomooRestBroker(Broker):
         bars = bars_from_moomoo(rows, market.tz)
         return [b for b in bars if start <= b.ts.date() <= end]
 
+    def basic_info(self, codes: list[str]) -> list[dict]:
+        """Static facts (name, board lot, exchange, state) for full codes like 'MY.1155'. Unknown codes are simply absent."""
+        data = self._call("POST", "/api/v1.0/quote/stock-basicinfo", json={"code_list": codes})
+        return data.get("basic_list", [])
+
     # ---- live paper-trading support (simulated account only; REAL is deliberately not implemented) ------
     SIM_STATUS = {2: "OPEN", 3: "PARTIAL", 4: "FILLED", 5: "CANCELLED", 6: "REJECTED"}
 

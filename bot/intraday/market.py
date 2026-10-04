@@ -154,6 +154,9 @@ def explain_error(err: Exception, market: Market) -> str:
     if "permission" in low or "quote right" in low:
         return (f"Your Moomoo account has no real-time {market.name} quote right ({text}). Enable or buy the {market.name} "
                 f"quote subscription in the Moomoo app, then try again.")
+    if "invalid symbol" in low or "invalid_symbol" in low:
+        return (f"Moomoo does not recognise that {market.name} symbol ({text}). Use the exact code the Moomoo app shows under "
+                f"the stock name, with the '{market.prefix}' prefix, and check it with: python -m bot.smoke_moomoo --probe {market.prefix}<code>")
     if "unsupported market" in low:
         return (f"Moomoo's API does not serve {market.name} price data for this account ({market.prefix} symbols are 'unsupported'). "
                 f"Backtest with your own 1-minute CSV files: python -m bot.intraday.cli --market {market.code} --csv-dir data/{market.code.lower()}")

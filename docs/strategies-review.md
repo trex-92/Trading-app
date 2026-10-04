@@ -58,13 +58,14 @@ trading minutes only. 5-minute bars never straddle the lunch break.
    need no entry (no bars = no trading). Moomoo's 1-minute history for SG/MY is unverified (depth, completeness).
 6. **Operating hours are friendlier:** Bursa and SGX run during your day (09:00-17:00), so the PC does not need to
    stay on overnight for these two. Same warning applies: if it sleeps, nothing trades and bot-held stops do nothing.
-7. **First real probe (your account):** Singapore data was refused with *"realtime quote permission required"* (your
-   account has no SGX real-time quote right; enable or buy it in the Moomoo app), and Malaysia was refused with
-   *"unsupported market"* (Moomoo's history API does not list Bursa among its supported markets). Consequence: with Moomoo
-   as the only data source, **Bursa cannot be backtested or paper traded**; SGX needs the quote subscription first. For
-   Bursa, supply your own 1-minute CSV files: `python -m bot.intraday.cli --market MY --csv-dir data/my --tickers 1155`
-   (columns `timestamp,open,high,low,close,volume`; naive timestamps are read as Malaysia time). The app and engine
-   now show these refusals in plain words instead of failing silently.
+7. **First real probes (your account), still unresolved:** Singapore history was refused with *"realtime quote permission
+   required"* (no SGX real-time quote right: enable or buy it in the Moomoo app). Malaysia was first refused as
+   *"unsupported market"* and, a later run, as *"invalid symbol"*. The symbol-info endpoint lists MY as supported while the
+   history endpoint's list omits it, so the API is inconsistent and I cannot yet say whether Bursa data is obtainable.
+   `python -m bot.smoke_moomoo --probe MY.1155 SG.D05` now asks Moomoo which codes it recognises (and their real board lot).
+   Until a code returns 1-minute bars, Bursa can only be backtested from your own CSV files:
+   `python -m bot.intraday.cli --market MY --csv-dir data/my --tickers 1155` (columns `timestamp,open,high,low,close,volume`;
+   naive timestamps are read as Malaysia time).
 8. The mega-cap / ETF suggestions (`ES3` for SG, `1155` for MY) are only sample symbols, not recommendations.
 
 ## 1. Problems found in the spec (most important first)

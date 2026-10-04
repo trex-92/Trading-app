@@ -327,6 +327,9 @@ class StubBroker:
     def __init__(self, fail_my=None, fail_sg=None):
         self.fail = {"MY": fail_my, "SG": fail_sg}
 
+    def basic_info(self, codes):
+        return [{"code": c, "name": "Maybank", "lot_size": 100, "exchange": "BMS", "state": "NORMAL"} for c in codes if c == "MY.1155"]
+
     def cash(self): return 1000.0
     def positions(self): return []
     def last_price(self, s): return 100.0
@@ -350,6 +353,7 @@ def test_smoke_checks_run_end_to_end_and_explain_refusals():
     run_checks(StubBroker(), out=lines.append)
     text = "\n".join(lines)
     assert "[FAIL]" not in text and "matches the configured hours" in text and "regular" in text and "age=" in text
+    assert "MY.1155: Maybank | board lot 100 | exchange BMS" in text and "SG.D05: NOT RECOGNISED" in text
     lines.clear()
     run_checks(StubBroker(fail_sg="realtime quote permission required", fail_my="unsupported market"), out=lines.append)
     text = "\n".join(lines)
@@ -385,3 +389,21 @@ def test_live_engine_reports_a_data_problem_once_and_recovers(tmp_path):
     clock.now += timedelta(seconds=90)              # past the 60 s back-off
     r.cycle()
     assert r.data_error is None and r.day == D and sync.status[-1]["data_error"] is None
+
+
+def test_invalid_symbol_gets_actionable_advice():
+    from bot.intraday.market import explain_error
+    msg = explain_error(RuntimeError("invalid symbol"), MY)
+    assert "does not recognise" in msg and "--probe MY." in msg
+
+
+def test_basic_info_request(tmp_path):
+    from test_moomoo_rest import broker, ok_sim
+    seen = {}
+
+    def h(req):
+        seen["body"] = __import__("json").loads(req.content)
+        return ok_sim({"basic_list": [{"code": "MY.1155", "lot_size": 100}]})
+
+    assert broker(tmp_path, h).basic_info(["MY.1155", "MY.NOPE"]) == [{"code": "MY.1155", "lot_size": 100}]
+    assert seen["body"] == {"code_list": ["MY.1155", "MY.NOPE"]}

@@ -2,6 +2,7 @@
 
     python -m bot.smoke_moomoo              # accounts, cash, positions, prices, history, SG/MY data (no orders)
     python -m bot.smoke_moomoo --order      # also place ONE 1-share simulated market order (SIMULATE only)
+    python -m bot.smoke_moomoo --probe MY.1155 SG.D05    # check specific symbol codes (put --probe last)
 """
 import json
 import sys
@@ -64,7 +65,21 @@ def market_probe(broker, market, symbol):
     return f"{market.code} {symbol}\n       " + "\n       ".join(lines)
 
 
-def run_checks(broker, order=False, out=print):
+DEFAULT_PROBES = ["SG.ES3", "SG.D05", "MY.1155", "US.SPY"]
+
+
+def symbol_lookup(broker, codes):
+    """Ask Moomoo which of these codes exist, with name, board lot and exchange (verifies the 100-share lot assumption)."""
+    found = {r["code"]: r for r in broker.basic_info(codes)}
+    lines = []
+    for c in codes:
+        r = found.get(c)
+        lines.append(f"{c}: " + (f"{r.get('name')} | board lot {r.get('lot_size')} | exchange {r.get('exchange')} | state {r.get('state')}"
+                                 if r else "NOT RECOGNISED by Moomoo"))
+    return "\n       " + "\n       ".join(lines)
+
+
+def run_checks(broker, order=False, out=print, probes=None):
     out(f"       account id: {broker.acc_id}")
     step("cash", broker.cash, out)
     step("positions", lambda: [(p.symbol, p.qty, p.avg_price, p.last_price) for p in broker.positions()], out)
@@ -73,6 +88,7 @@ def run_checks(broker, order=False, out=print):
     step("last 5 daily closes AAPL", lambda: broker.history("AAPL", 5), out)
     step("SPY quote freshness", lambda: us_quote_age(broker), out)
     step("1-minute SPY history (first regular bar should read 09:30, last 15:59)", lambda: us_history(broker), out)
+    step("Symbol lookup (is the code right, and what is the board lot?)", lambda: symbol_lookup(broker, probes or DEFAULT_PROBES), out)
     step("Singapore (SGX) data", lambda: market_probe(broker, SG, "ES3"), out)
     step("Malaysia (Bursa) data", lambda: market_probe(broker, MY, "1155"), out)
     if order:
@@ -97,7 +113,8 @@ def main() -> int:
     broker = step("connect + find US simulated account", lambda: MoomooRestBroker("SIMULATE"))
     if not broker:
         return 1
-    run_checks(broker, order="--order" in sys.argv)
+    probes = sys.argv[sys.argv.index("--probe") + 1:] if "--probe" in sys.argv else None
+    run_checks(broker, order="--order" in sys.argv, probes=[p.upper() for p in probes] if probes else None)
     broker.close()
     return 0
 
