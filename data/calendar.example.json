@@ -1,0 +1,6 @@
+{
+  "_comment": "Copy to data/calendar.json and fill in dates YOU have verified (Fed calendar, BLS release schedule, NYSE holiday schedule). Nothing is bundled on purpose.",
+  "fomc_days": [],
+  "cpi_nfp_days": [],
+  "half_days": []
+}

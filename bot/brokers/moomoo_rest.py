@@ -11,7 +11,7 @@ and Bearer scopes needed (trade:read/trade:write/quote:read).
 """
 import os
 import time
-from datetime import date
+from datetime import date, datetime
 
 import httpx
 
@@ -96,6 +96,30 @@ class MoomooRestBroker(Broker):
                           params={"end": date.today().isoformat(), "ktype": 2, "autype": 1, "num": min(bars + 5, 370)})
         rows = sorted(data.get("kline_list", []), key=lambda k: k["time_key"])
         return [float(k["close"]) for k in rows][-bars:]
+
+    def intraday_bars(self, symbol: str, start: date, end: date, ktype: int = 1, max_pages: int = 120):
+        """1-minute (ktype=1) bars incl. pre/after-market, oldest first, paging backwards from `end`.
+        UNVERIFIED against the live service: the paging contract (next_time passed back as `end`) is from the docs;
+        check coverage in the result's `data` section before trusting a backtest."""
+        from ..intraday.data import bars_from_moomoo
+        rows, seen, cursor = [], set(), end.isoformat()
+        for _ in range(max_pages):
+            data = self._call("GET", f"/api/v1.0/quote/{self._code(symbol)}/history-kline", params={
+                "start": start.isoformat(), "end": cursor, "ktype": ktype, "autype": 1, "num": 370,
+                "extended_time": 1})
+            page = [k for k in data.get("kline_list", []) if k["time_key"] not in seen]
+            if not page:
+                break
+            seen.update(k["time_key"] for k in page)
+            rows += page
+            nxt = data.get("next_time")
+            if not nxt or min(k["time_key"] for k in page) / 1000 <= datetime.combine(
+                    start, datetime.min.time()).timestamp():
+                break
+            cursor = str(nxt)
+            self._sleep(0.15)
+        bars = bars_from_moomoo(rows)
+        return [b for b in bars if start <= b.ts.date() <= end]
 
     def last_price(self, symbol):
         data = self._call("POST", "/api/v1.0/quote/snapshot", json={"code_list": [self._code(symbol)]})

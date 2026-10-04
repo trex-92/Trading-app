@@ -57,3 +57,25 @@ class SupabaseSync:
         for row in rows:
             self._req("PATCH", "/bot_commands", params={"id": f"eq.{row['id']}"}, json={"status": "done"})
         return [row["command"] for row in rows]
+
+    # ---- strategy tabs -------------------------------------------------------------------------------
+    def claim_backtests(self) -> list[dict]:
+        """Atomically move pending runs to 'running' (the status filter on the PATCH makes double-claims a no-op)."""
+        r = self._req("GET", "/backtest_runs", params={
+            "user_id": f"eq.{self.user_id}", "status": "eq.pending", "order": "created_at.asc",
+            "select": "id,strategy,params", "limit": "5"})
+        claimed = []
+        for row in (r.json() if r else []):
+            c = self._req("PATCH", "/backtest_runs", headers={"Prefer": "return=representation"},
+                          params={"id": f"eq.{row['id']}", "status": "eq.pending"}, json={"status": "running"})
+            if c is not None and c.json():
+                claimed.append(row)
+        return claimed
+
+    def finish_backtest(self, run_id: str, summary: dict, result: dict) -> None:
+        self._req("PATCH", "/backtest_runs", params={"id": f"eq.{run_id}"},
+                  json={"status": "done", "summary": summary, "result": result, "finished_at": now()})
+
+    def fail_backtest(self, run_id: str, error: str) -> None:
+        self._req("PATCH", "/backtest_runs", params={"id": f"eq.{run_id}"},
+                  json={"status": "error", "error": error[:500], "finished_at": now()})
