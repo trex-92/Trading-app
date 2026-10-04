@@ -32,6 +32,10 @@ def main() -> int:
         print("Not logged in. Run scripts\\moomoo-login.ps1 first.")
         return 1
     print(f"token file: {TokenStore().path}\ngranted scope: {tokens.get('scope')!r}\n")
+    probe = MoomooRestBroker("SIMULATE", acc_id="probe")  # skips account discovery
+    step("raw simulated accounts", lambda: probe._call("GET", "/api/v1.0/sim-trade/accounts"))
+    step("raw authorized real accounts (read-only)", lambda: probe._call("GET", "/api/v1.0/accounts/authorized_trd_accs"))
+    print()
     broker = step("connect + find US simulated account", lambda: MoomooRestBroker("SIMULATE"))
     if not broker:
         return 1

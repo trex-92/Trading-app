@@ -76,7 +76,7 @@ class MoomooRestBroker(Broker):
         accts = (self._call("GET", "/api/v1.0/sim-trade/accounts") or {}).get("accounts", [])
         us = [a for a in accts if a.get("market_id") == US_MARKET_ID]
         if not us:
-            raise MoomooError("No US simulated account found")
+            raise MoomooError(f"No US simulated account found; accounts returned: {accts}")
         return str(us[0]["account_id"])
 
     @staticmethod
