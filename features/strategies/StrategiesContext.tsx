@@ -1,14 +1,15 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import {
-  deleteBacktest, fetchBacktests, fetchConfigs, fetchJournal, queueBacktest, saveConfig, subscribeToStrategies,
+  deleteBacktest, fetchBacktests, fetchConfigs, fetchEngine, fetchJournal, queueBacktest, saveConfig, subscribeToStrategies,
 } from '@/lib/providers/strategies';
-import type { BacktestRun, JournalTrade, StrategyCode, StrategyConfig } from './types';
+import type { BacktestRun, EngineRow, JournalTrade, StrategyCode, StrategyConfig } from './types';
 
 type State = {
   configs: StrategyConfig[];
   runs: BacktestRun[];
   journal: JournalTrade[];
+  engine: EngineRow | null;
   error: string | null;
   refresh: () => Promise<void>;
   saveBudget: (s: StrategyCode, budget: number) => Promise<void>;
@@ -24,6 +25,7 @@ export function StrategiesProvider({ children }: { children: ReactNode }) {
   const [configs, setConfigs] = useState<StrategyConfig[]>([]);
   const [runs, setRuns] = useState<BacktestRun[]>([]);
   const [journal, setJournal] = useState<JournalTrade[]>([]);
+  const [engine, setEngine] = useState<EngineRow | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inflight = useRef(false);
 
@@ -31,10 +33,11 @@ export function StrategiesProvider({ children }: { children: ReactNode }) {
     if (inflight.current) return;
     inflight.current = true;
     try {
-      const [c, r, j] = await Promise.all([fetchConfigs(), fetchBacktests(), fetchJournal()]);
+      const [c, r, j, e] = await Promise.all([fetchConfigs(), fetchBacktests(), fetchJournal(), fetchEngine()]);
       setConfigs(c);
       setRuns(r);
       setJournal(j);
+      setEngine(e);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -74,7 +77,7 @@ export function StrategiesProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   return (
-    <Ctx.Provider value={{ configs, runs, journal, error, refresh, saveBudget, setEnabled, runBacktest, removeRun }}>
+    <Ctx.Provider value={{ configs, runs, journal, engine, error, refresh, saveBudget, setEnabled, runBacktest, removeRun }}>
       {children}
     </Ctx.Provider>
   );

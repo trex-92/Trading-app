@@ -1,5 +1,5 @@
 import {
-  allocation, defaultRange, downsample, equityBars, isIsoDate, journalProgress, parseTickers, validateBudget, validateRange,
+  allocation, defaultRange, engineSummary, downsample, equityBars, isIsoDate, journalProgress, parseTickers, validateBudget, validateRange,
 } from './calculations';
 import type { JournalTrade, StrategyConfig } from './types';
 
@@ -87,5 +87,26 @@ describe('charts and journal', () => {
     expect(p.avgR).toBeCloseTo(0.25);
     expect(p.pct).toBe(2);
     expect(journalProgress([]).winRate).toBeNull();
+  });
+});
+
+describe('engineSummary', () => {
+  const now = new Date('2026-10-05T14:00:00Z');
+  const base = {
+    mode: 'paper' as const, session: 'open' as const, feed_ok: true, halt_reason: null, stops: 'held by the bot',
+    calendar_configured: true, blocked_today: null, enabled: ['A'],
+    risk: { per_trade_pct: 1, breaker_level: 0, live_disabled: false, daily_max_loss_pct: 2 }, day: null, position: null,
+  };
+  const row = (over = {}, ago = 5) => ({ state: { ...base, ...over }, updated_at: new Date(now.getTime() - ago * 1000).toISOString() });
+
+  it('reports each condition, most serious first', () => {
+    expect(engineSummary(null, now, 'A').level).toBe('warn');
+    expect(engineSummary(row({}, 300), now, 'A')).toMatchObject({ level: 'bad', text: expect.stringMatching(/offline/) });
+    expect(engineSummary(row({ halt_reason: 'order rejected' }), now, 'A').level).toBe('bad');
+    expect(engineSummary(row({ session: 'closed' }), now, 'A').text).toMatch(/Market closed/);
+    expect(engineSummary(row({ feed_ok: false }), now, 'A').text).toMatch(/stale/);
+    expect(engineSummary(row({ blocked_today: 'fomc_day' }), now, 'A').text).toMatch(/fomc day/);
+    expect(engineSummary(row(), now, 'B').level).toBe('warn'); // B is not enabled
+    expect(engineSummary(row(), now, 'A')).toEqual({ text: 'Engine running on the simulated account.', level: 'ok' });
   });
 });

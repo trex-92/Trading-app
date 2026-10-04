@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type {
-  BacktestResult, BacktestRun, JournalTrade, StrategyCode, StrategyConfig,
+  BacktestResult, BacktestRun, EngineRow, JournalTrade, StrategyCode, StrategyConfig,
 } from '@/features/strategies/types';
 
 function check<T>(res: { data: T | null; error: { message: string } | null }): T | null {
@@ -65,9 +65,13 @@ export async function fetchJournal(limit = 200): Promise<JournalTrade[]> {
   );
 }
 
+export async function fetchEngine(): Promise<EngineRow | null> {
+  return check(await supabase.from('engine_status').select('state,updated_at').maybeSingle<EngineRow>());
+}
+
 export function subscribeToStrategies(onChange: () => void): () => void {
   const channel = supabase.channel('strategies');
-  for (const table of ['strategy_configs', 'backtest_runs', 'strategy_trades']) {
+  for (const table of ['strategy_configs', 'backtest_runs', 'strategy_trades', 'engine_status']) {
     channel.on('postgres_changes', { event: '*', schema: 'public', table }, onChange);
   }
   channel.subscribe();

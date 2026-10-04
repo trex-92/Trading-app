@@ -5,13 +5,15 @@ from dataclasses import dataclass
 from .params import SharedParams
 
 
-def size_position(equity: float, entry: float, stop: float, p: SharedParams) -> dict:
+def size_position(equity: float, entry: float, stop: float, p: SharedParams, risk_pct: float | None = None) -> dict:
     """shares = floor(min(equity*risk%/risk_per_share, equity*max_notional%/entry)); skip rules per the spec."""
     rps = entry - stop
     out = {"equity": round(equity, 2), "entry": entry, "stop": stop, "risk_per_share": round(rps, 4)}
     if rps <= 0 or entry <= 0 or equity <= 0:
         return {**out, "shares": 0, "skip": "invalid entry/stop/equity"}
-    by_risk = equity * p.risk_per_trade_pct / 100 / rps
+    risk_pct = p.risk_per_trade_pct if risk_pct is None else risk_pct
+    out["risk_pct"] = risk_pct
+    by_risk = equity * risk_pct / 100 / rps
     by_notional = equity * p.max_notional_pct / 100 / entry
     shares = math.floor(min(by_risk, by_notional))
     out.update(shares_by_risk=round(by_risk, 2), shares_by_notional=round(by_notional, 2), shares=shares,
@@ -44,3 +46,43 @@ class DayRisk:
     def record(self, net_pnl: float) -> None:
         self.realized += net_pnl
         self.consecutive_losses = self.consecutive_losses + 1 if net_pnl < 0 else 0
+
+
+class DrawdownGuard:
+    """Tracks realized P&L against its peak and applies the spec's two breakers.
+
+    Level 0: normal. Level 1 (drawdown >= breaker1_pct): risk per trade falls to breaker1_risk_pct.
+    Level 2 (>= breaker2_pct): live trading disabled, back to paper. INTERPRETATION: a tripped level is cleared only
+    when realized P&L makes a new peak (the spec does not say how to step back up).
+    Drawdown % is relative to (base capital + peak P&L), where base is the capital currently allocated."""
+
+    def __init__(self, p: SharedParams, cum: float = 0.0, peak: float = 0.0, level: int = 0):
+        self.p, self.cum, self.peak, self.level = p, cum, max(peak, cum), level
+
+    def drawdown_pct(self, base: float) -> float:
+        cap_peak = base + self.peak
+        return 0.0 if cap_peak <= 0 else (self.peak - self.cum) / cap_peak * 100
+
+    def record(self, net_pnl: float, base: float) -> int:
+        """Apply a closed trade; returns the new level."""
+        self.cum += net_pnl
+        if self.cum >= self.peak:
+            self.peak, self.level = self.cum, 0
+        else:
+            dd = self.drawdown_pct(base)
+            if dd >= self.p.breaker2_pct:
+                self.level = 2
+            elif dd >= self.p.breaker1_pct:
+                self.level = max(self.level, 1)
+        return self.level
+
+    @property
+    def risk_pct(self) -> float:
+        return self.p.breaker1_risk_pct if self.level >= 1 else self.p.risk_per_trade_pct
+
+    @property
+    def live_disabled(self) -> bool:
+        return self.level >= 2
+
+    def dump(self) -> dict:
+        return {"cum": self.cum, "peak": self.peak, "level": self.level}

@@ -1,6 +1,7 @@
 import { Card, ThemedText } from '@/components/themed';
 import { ErrorBanner, Screen } from '@/features/bot/components';
 import { BacktestCard } from '../components/BacktestCard';
+import { EngineCard } from '../components/EngineCard';
 import { BudgetCard } from '../components/BudgetCard';
 import { JournalCard } from '../components/JournalCard';
 import { STRATEGIES } from '../calculations';
@@ -20,6 +21,7 @@ export function StrategyScreen({ code }: { code: StrategyCode }) {
       </Card>
       <ErrorBanner />
       {error && <ThemedText themeColor="negative">{error}</ThemedText>}
+      <EngineCard code={code} />
       <BudgetCard code={code} />
       <BacktestCard code={code} />
       <JournalCard code={code} />

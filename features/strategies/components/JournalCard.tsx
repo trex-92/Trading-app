@@ -21,7 +21,7 @@ export function JournalCard({ code }: { code: StrategyCode }) {
       </View>
       {p.count === 0 ? (
         <ThemedText type="small" themeColor="textSecondary">
-          No paper trades yet. The live paper-trading engine for these strategies is the next phase; until then, use the backtest.
+          No paper trades yet. They appear here once the paper engine (LIVE_STRATEGIES=yes) closes its first trade.
         </ThemedText>
       ) : (
         <>

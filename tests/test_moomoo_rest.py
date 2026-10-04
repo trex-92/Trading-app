@@ -171,3 +171,43 @@ def test_sim_positions_falls_back_to_market_filter(tmp_path):
     assert [p.symbol for p in b.positions()] == ["AAPL"]
     b.positions()
     assert seen == ["100", "100"]  # remembered the working filter
+
+
+def test_paper_engine_calls(tmp_path):
+    def h(req):
+        p = req.url.path
+        if p.endswith("/quote/snapshot"):
+            return ok_sim({"snapshot_list": [{"code": "US.SPY", "last_price": 601.25, "bid_price": 601.2, "ask_price": 601.3,
+                                              "update_time": 1790000000000}]})
+        if p.endswith("/history-kline"):
+            return ok_sim({"kline_list": [{"time_key": 1790000000000 + 60000 * i, "open": 1, "high": 2, "low": 0.5,
+                                           "close": 1.5, "volume": 10} for i in range(5)]})
+        if p.endswith("/cash-info"):
+            return ok_sim({"balance": "1", "total_asset": "999.5"})
+        if p.endswith("/cancel"):
+            seen["cancel"] = p
+            return ok_sim({"order_id": "9"})
+        if p.endswith("/orders"):
+            return ok_sim({"orders": [
+                {"order_id": "1", "side": 1, "symbol": "SPY", "status": 4, "cum_qty": "10", "avg_fill_price": "600.5"},
+                {"order_id": "2", "side": 2, "symbol": "QQQ", "status": 3, "cum_qty": "5", "avg_fill_price": "500"},
+                {"order_id": "3", "side": 1, "symbol": "SPY", "status": 5, "cum_qty": "0", "avg_fill_price": "0"}]})
+        raise AssertionError(p)
+
+    seen = {}
+    b = broker(tmp_path, h)
+    snap = b.snapshot(["SPY"])["SPY"]
+    assert snap["last"] == 601.25 and snap["ts"].tzinfo is not None and snap["bid"] == 601.2
+    assert len(b.recent_bars("SPY", 3)) == 3 and b.equity() == 999.5
+    assert b.order_status("1") == {"status": "FILLED", "filled_qty": 10.0, "avg_price": 600.5}
+    assert b.order_status("2")["status"] == "PARTIAL" and b.order_status("404")["status"] == "UNKNOWN"
+    assert [(o["id"], o["side"]) for o in b.open_orders()] == [("2", "SELL")]
+    b.cancel_order("2")
+    assert seen["cancel"].endswith("/orders/2/cancel")
+
+
+def test_paper_engine_calls_refuse_the_real_account(tmp_path):
+    b = broker(tmp_path, lambda req: ok_trd({}), env="REAL", acc="9")
+    for call in (lambda: b.order_status("1"), lambda: b.open_orders(), lambda: b.cancel_order("1")):
+        with pytest.raises(NotImplementedError):
+            call()

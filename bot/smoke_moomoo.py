@@ -56,6 +56,13 @@ def main() -> int:
         pre = [b for b in bars if b.ts.date() == last_day and not is_regular(b.ts)]
         return (f"{len(bars)} bars, days={sorted({b.ts.date().isoformat() for b in bars})}; {last_day}: {len(reg)} regular "
                 f"(first {reg[0].ts.time() if reg else None}, last {reg[-1].ts.time() if reg else None}), {len(pre)} extended-hours")
+    def quote_age():
+        from datetime import datetime
+        from .intraday.bars import NY
+        q = broker.snapshot(["SPY"])["SPY"]
+        age = None if q["ts"] is None else round((datetime.now(NY) - q["ts"]).total_seconds(), 1)
+        return f"last={q['last']} quote_time={q['ts']} age={age}s (the engine treats >10s during the session as a stale feed)"
+    step("SPY quote freshness", quote_age)
     step("1-minute SPY history (check: first regular bar should read 09:30, last 15:59)", intraday)
     if "--order" in sys.argv:
         o = step("place 1 share AAPL BUY via the adapter (marketable limit, simulated)",

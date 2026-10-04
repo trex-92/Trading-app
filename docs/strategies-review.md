@@ -1,5 +1,24 @@
 # Review of the three-strategy spec (A scalp, B trend, C range)
 
+## Current rules (v2, from your update)
+| Rule | Value |
+|---|---|
+| Risk per trade | 1.0% of the strategy's budget; **hard ceiling 1.0%: the bot refuses to start above it** |
+| Daily max loss | 2.0% of the capital allocated to enabled strategies (two full losses), then no more entries that day |
+| Max position | 1x the budget (no leverage), max 3 trades/day, stop after 2 consecutive losses, 1 open position |
+| Strategy B stop band | 0.3% to 1.0% of price (was 0.3% to 0.6%) |
+| Drawdown breaker 1 | 6% from the peak of (budget + realized P&L): risk per trade drops to 0.5% |
+| Drawdown breaker 2 | 10% from peak: live trading disabled, back to paper |
+Sizing: `shares = floor(min(equity*0.01/(entry-stop), equity*1.0/entry))`, logged on every trade.
+
+Breaker interpretation: a tripped breaker clears only when realized P&L makes a new peak. In a backtest, breaker 2 stops
+all further simulated entries (the account would be back on paper). The paper engine keeps paper trading and shows the
+breaker on screen. All of these are parameters in `bot/intraday/params.py` (`SharedParams`).
+
+**Effect of the 1x cap at 1% risk:** risk as a share of the account can never exceed the stop distance as a share of
+price. A (stops <= 0.25%) therefore risks at most 0.25% per trade, C depends on the range width, and only B (stops up
+to 1%) can actually use the full 1%.
+
 Status of the code: strategies, shared risk layer and backtester are implemented and unit-tested on synthetic data.
 **No result in this repo says anything about real markets yet.** Every threshold is your untested default.
 
@@ -13,8 +32,10 @@ Status of the code: strategies, shared risk layer and backtester are implemented
    - Consequence: in simulation the bot must hold stops in memory (what the spec forbids), and for real trading the stop
      goes out as a second order after the entry fills, leaving a gap. Moving the stop to breakeven and selling 50% at T1
      means cancel/modify plus a new order.
-   - Proposal for the paper engine: bot-held stops, clearly labelled; before any live money, test real stop orders
-     with 1-share orders. Needs your decision before I build it.
+   - **Decision taken: paper trading uses bot-held stops, labelled on screen.** The paper engine (`bot/intraday/live.py`)
+     watches the price every ~5 seconds and sends the exit itself. If the bot, the PC or the internet is down, nothing
+     protects an open position. Before any live money, stops must live at the broker (test real STOP orders with
+     1-share orders first). The engine refuses REAL accounts.
 2. **Backtest data is unverified.** The adapter pages Moomoo's `history-kline` (1-minute, extended hours, 370 bars per page).
    Depth of history, the paging contract and whether `time_key` is the bar start or end are untested. Run
    `python -m bot.smoke_moomoo` and check the "1-minute SPY history" line (first regular bar should read 09:30).
@@ -23,10 +44,9 @@ Status of the code: strategies, shared risk layer and backtester are implemented
    in live/paper mode, which is not built yet.
 4. **Event days are not bundled.** FOMC/CPI/NFP/half-day dates are not in the repo (I could not verify them).
    Fill `data/calendar.json` (see `data/calendar.example.json`). Until then every backtest says so in its notes.
-5. **The 0.5% risk rule rarely binds.** With a 1x notional cap, shares = min(0.5% equity / stop distance, equity / price).
-   For stops under 0.5% of price the notional cap wins: A (stop <= 0.25%) risks <= 0.25% of the budget, B (0.3%-0.6%)
-   risks 0.3%-0.5%. R-multiples are unaffected, but dollar P&L per R is smaller than the spec implies. Each trade logs
-   which cap bound (`regime.sizing.binding`).
+5. **The risk percentage is limited by the 1x cap.** shares = min(risk% x equity / stop distance, equity / price). When
+   the stop is closer than the risk percentage (stop% < risk%), the notional cap wins and the trade risks only the stop
+   distance. At 1% risk that covers all of A and most of C. Each trade logs which cap bound (`regime.sizing.binding`).
 6. **100 paper trades is a weak test.** At a typical R spread (~1R standard deviation) 100 trades give an expectancy
    uncertainty of about +/-0.2R (95%). Only a large edge would show. The tab displays the 95% range for this reason.
    Strategies with strict filters (A, C) may need many months to reach 100.
@@ -62,7 +82,20 @@ first. A gap through a stop fills at the open. After T1 the breakeven stop is fi
 $0.02/share round trip (assumption, `cost_per_share_round_trip`). No lookahead (tested): truncating the future leaves
 earlier trades unchanged.
 
-## 4. Next phase (needs your decision on item 1)
+## 4. The paper engine (built; untested against the real simulated account)
 
-Live/paper engine: 1m/5m bar feed from the broker, signals through the same risk layer, journal rows in
-`strategy_trades`, reconcile open positions/orders on startup, 10-second stale-feed kill switch, stop handling per item 1.
+Run with `LIVE_STRATEGIES=yes`, `BROKER=moomoo_rest`, `TRADE_ENV=SIMULATE` in `bot\.env`. It:
+- polls quotes every ~5s and 1-minute bars once a minute, feeding the same strategy and risk code as the backtester
+  (a test checks it makes the same trade as the backtest on identical prices);
+- takes entries as buy limits at the signal price (up to 20s to fill, otherwise cancelled), exits with marketable
+  limit sells (retrying at 0.1%, 0.2%, 0.4% below the last price);
+- on start-up reconciles broker positions/orders with its saved state (`data/live_state.json`): leftover orders on its
+  tickers are cancelled; an unexpected or mismatched position halts new entries and says why;
+- stale feed (quote older than 10 s): no entries, open orders cancelled, status shows that bot-held stops are not being
+  watched; recovers by itself. Any rejected order: entries halt until the bot is restarted;
+- carries yesterday's position out at the open if the bot missed the end-of-day exit;
+- journals closed trades to `strategy_trades` (and `data/journal.jsonl`), publishes `engine_status` for the app.
+Costs in paper trades are the assumed $/share, because the simulator reports no fees.
+
+**Operating requirement:** all of this runs on the PC that runs the bot. If it sleeps or goes offline, there are no
+trades and no stop protection.

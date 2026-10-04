@@ -63,11 +63,11 @@ export function BudgetCard({ code }: { code: StrategyCode }) {
       {text !== '' && check.error && <ThemedText type="small" themeColor="negative">{check.error}</ThemedText>}
       {error && <ThemedText type="small" themeColor="negative">{error}</ThemedText>}
       <ThemedText type="small" themeColor="textSecondary">
-        Position size comes from this budget: risk is 0.5% of it per trade, and a trade never exceeds it.
+        Position size comes from this budget: risk is 1% of it per trade (0.5% after a 6% drawdown), and a trade never exceeds it.
       </ThemedText>
       <Row left={<View>
           <ThemedText>Enabled</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">Saved now; takes effect when the paper-trading engine ships.</ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">The paper engine reads this within 30 seconds.</ThemedText>
         </View>}
         right={<Switch value={mine?.enabled ?? false} onValueChange={(v) => setEnabled(code, v).catch((e) => setError(String(e.message ?? e)))} />} />
     </Card>

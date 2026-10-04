@@ -81,3 +81,19 @@ export type JournalTrade = {
   pnl: number | null;
   r_multiple: number | null;
 };
+
+export type EngineState = {
+  mode: 'paper';
+  session: 'open' | 'closed';
+  feed_ok: boolean;
+  halt_reason: string | null;
+  stops: string;
+  calendar_configured: boolean;
+  blocked_today: string | null;
+  enabled: string[];
+  risk: { per_trade_pct: number; breaker_level: number; live_disabled: boolean; daily_max_loss_pct: number };
+  day: { trades: number; realized: number; consecutive_losses: number } | null;
+  position: { strategy: StrategyCode; ticker: string; shares: number; entry: number; stop: number; t1: number } | null;
+};
+
+export type EngineRow = { state: EngineState; updated_at: string };

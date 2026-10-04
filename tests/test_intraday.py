@@ -7,8 +7,8 @@ from bot.intraday.bars import NY, Bar
 from bot.intraday.calendar import Calendar
 from bot.intraday.context import DayContext, TickerState
 from bot.intraday.data import business_days, synthetic_history
-from bot.intraday.params import ScalpParams, SharedParams, apply_overrides
-from bot.intraday.risk import DayRisk, size_position
+from bot.intraday.params import ScalpParams, SharedParams, TrendParams, apply_overrides
+from bot.intraday.risk import DayRisk, DrawdownGuard, size_position
 from bot.intraday.stats import summarize
 from bot.intraday.strategies import Range, Scalp, Signal, Strategy, Trend
 
@@ -49,23 +49,32 @@ def run(strats, over=None, shared=None, cal=None, budget=100000):
 # ---- sizing & params ----------------------------------------------------------------------------------------
 def test_sizing_formula_and_binding_cap():
     p = SharedParams()
-    s = size_position(100000, 100.0, 99.0, p)  # by risk 500, by notional 1000
-    assert s["shares"] == 500 and s["binding"] == "risk" and s["skip"] is None
-    s = size_position(100000, 100.0, 99.8, p)  # by risk 2500, by notional 1000 -> notional binds
+    s = size_position(100000, 100.0, 98.0, p)  # 1% risk: by risk 500, by notional 1000
+    assert s["shares"] == 500 and s["binding"] == "risk" and s["skip"] is None and s["risk_pct"] == 1.0
+    s = size_position(100000, 100.0, 99.0, p)  # by risk 1000 == by notional 1000
+    assert s["shares"] == 1000
+    s = size_position(100000, 100.0, 99.8, p)  # by risk 5000, by notional 1000 -> notional binds
     assert s["shares"] == 1000 and s["binding"] == "notional"
+    assert size_position(100000, 100.0, 98.0, p, risk_pct=0.5)["shares"] == 250  # breaker-reduced risk
 
 
 def test_sizing_skips():
     p = SharedParams()
-    assert size_position(100, 100.0, 99.0, p)["skip"] == "shares < 1"
+    assert size_position(50, 100.0, 99.0, p)["skip"] == "shares < 1"
     assert size_position(100000, 100.0, 100.0, p)["skip"]
     # cost 0.02/share vs 10% of a $0.10 risk-per-share (=0.01) -> skip
     assert "cost" in size_position(100000, 100.0, 99.9, p)["skip"]
 
 
 def test_params_validation():
-    with pytest.raises(ValueError, match="exceed 1.0"):
-        SharedParams(risk_per_trade_pct=1.5).validate()
+    assert SharedParams().risk_per_trade_pct == 1.0 and SharedParams().daily_max_loss_pct == 2.0
+    with pytest.raises(ValueError, match="hard ceiling"):
+        SharedParams(risk_per_trade_pct=1.2).validate()      # above the 1.0 ceiling: refuse to start
+    with pytest.raises(ValueError, match="may not be above 1.0"):
+        SharedParams(risk_per_trade_pct=1.2, risk_hard_ceiling_pct=1.5).validate()  # the ceiling itself is capped
+    with pytest.raises(ValueError, match="breakers"):
+        SharedParams(breaker1_pct=10, breaker2_pct=6).validate()
+    assert TrendParams().min_stop_pct == 0.3 and TrendParams().max_stop_pct == 1.0
     with pytest.raises(ValueError, match="long only"):
         SharedParams(allow_short=True).validate()
     with pytest.raises(ValueError, match="unknown parameter"):
@@ -80,7 +89,7 @@ def test_day_risk_limits():
     assert r.can_enter(p) is None
     r.record(-100); r.record(-100)
     assert "consecutive" in r.can_enter(p)
-    r2 = DayRisk(100000); r2.record(-1500)
+    r2 = DayRisk(100000); r2.record(-2000)
     assert "daily loss" in r2.can_enter(p)
     r3 = DayRisk(100000); r3.trades = 3
     assert "max trades" in r3.can_enter(p)
@@ -143,8 +152,8 @@ def test_no_lookahead_truncating_the_future_does_not_change_earlier_trades():
 def test_stop_loss():
     r = run([Fixed([40])], {45: (100, 100.1, 98.9, 99.2)})
     t = r.trades[0]
-    assert t["shares"] == 500 and [e["reason"] for e in t["exits"]] == ["stop"] and t["exits"][0]["price"] == 99.0
-    assert t["pnl"] == pytest.approx(-500 - 10) and t["r"] == pytest.approx(-1.02)
+    assert t["shares"] == 1000 and [e["reason"] for e in t["exits"]] == ["stop"] and t["exits"][0]["price"] == 99.0
+    assert t["pnl"] == pytest.approx(-1000 - 20) and t["r"] == pytest.approx(-1.02)
 
 
 def test_stop_assumed_first_when_bar_touches_stop_and_target():
@@ -155,8 +164,8 @@ def test_stop_assumed_first_when_bar_touches_stop_and_target():
 def test_target1_partial_then_breakeven_stop():
     r = run([Fixed([40])], {45: (100, 101.6, 99.9, 101.5), 46: (101.4, 101.5, 99.9, 100.2)})
     t = r.trades[0]
-    assert [(e["reason"], e["qty"], e["price"]) for e in t["exits"]] == [("target1", 250, 101.5), ("breakeven_stop", 250, 100)]
-    assert t["pnl"] == pytest.approx(250 * 1.5 - 10)
+    assert [(e["reason"], e["qty"], e["price"]) for e in t["exits"]] == [("target1", 500, 101.5), ("breakeven_stop", 500, 100)]
+    assert t["pnl"] == pytest.approx(500 * 1.5 - 20)
 
 
 HOLD = {i: (101.2, 101.3, 101.1, 101.2) for i in range(46, 390)}  # stays above the breakeven stop
@@ -171,7 +180,7 @@ def test_gap_through_stop_fills_at_open():
     r = run([Fixed([40])], {45: (98.5, 98.7, 98.4, 98.6)})
     t = r.trades[0]
     assert t["exits"][0]["reason"] == "stop_gap" and t["exits"][0]["price"] == 98.5
-    assert t["pnl"] == pytest.approx(-1.5 * 500 - 10)
+    assert t["pnl"] == pytest.approx(-1.5 * 1000 - 20)
 
 
 def test_entry_not_filled_when_price_runs_away():
@@ -185,7 +194,7 @@ def test_entry_fills_at_open_when_it_gaps_in_our_favour():
 
 
 def test_single_share_position_exits_fully_at_target1():
-    r = run([Fixed([40])], {45: (100, 101.6, 99.9, 101.5)}, budget=300)  # 300*0.5%/1 = 1.5 -> 1 share
+    r = run([Fixed([40])], {45: (100, 101.6, 99.9, 101.5)}, budget=100)  # 100*1%/1 = 1 share
     t = r.trades[0]
     assert t["shares"] == 1 and [e["reason"] for e in t["exits"]] == ["target1"]
 
@@ -219,7 +228,7 @@ def test_stops_trading_after_two_consecutive_losses():
 
 
 def test_daily_loss_limit_halts_new_entries():
-    sh = SharedParams(risk_per_trade_pct=1.0, stop_after_consecutive_losses=9)
+    sh = SharedParams(stop_after_consecutive_losses=9)
     r = run([Fixed([40, 80, 120, 160])], STOPS, shared=sh)
     assert len(r.trades) == 2  # -1.01% twice => beyond the 1.5% limit
 
@@ -279,3 +288,37 @@ def test_summarize():
     assert s["total_pnl"] == 200 and s["profit_factor"] == 5.0 and s["days_traded"] == 2
     assert s["max_drawdown_pct"] == pytest.approx(50 / 10100 * 100, abs=0.01)
     assert summarize([], 10000)["note"] == "no trades"
+
+
+# ---- drawdown breakers --------------------------------------------------------------------------------------
+def test_drawdown_guard_levels_and_recovery():
+    p = SharedParams()
+    g = DrawdownGuard(p)
+    assert g.risk_pct == 1.0 and not g.live_disabled
+    assert g.record(-5000, 100000) == 0                     # 4.8% from peak: nothing yet
+    assert g.record(-1500, 100000) == 1 and g.risk_pct == 0.5  # 6.5%
+    assert g.record(+1000, 100000) == 1                     # still below the old peak: stays reduced
+    assert g.record(-4500, 100000) == 2 and g.live_disabled  # exactly 10% from peak
+    g2 = DrawdownGuard(p)
+    g2.record(-7000, 100000)
+    assert g2.level == 1
+    assert g2.record(+8000, 100000) == 0 and g2.risk_pct == 1.0  # new equity peak clears the breaker
+
+
+def test_backtest_cuts_risk_at_6_percent_and_stops_at_10_percent():
+    days = business_days(date(2026, 9, 1), date(2026, 10, 9))
+    loss = {40: (100, 100.05, 99.95, 100), 44: (100, 100.1, 98.8, 98.9), 45: (100, 100.05, 99.95, 100)}
+    data = {"SPY": [b for d in days for b in mkday(d, loss if d != days[0] else None)]}
+    res = Backtester([Fixed([40])], SharedParams(), 100000).run(data)
+    notes = " ".join(res.notes)
+    assert "breaker 1 tripped" in notes and "breaker 2 tripped" in notes
+    risk = [t["regime"]["sizing"]["risk_pct"] for t in res.trades]
+    first_cut = risk.index(0.5)
+    assert set(risk[:first_cut]) == {1.0} and set(risk[first_cut:]) == {0.5}
+    # the cut happens exactly after cumulative losses first reach 6% of capital, and the size roughly halves
+    cum_before = sum(t["pnl"] for t in res.trades[:first_cut])
+    assert cum_before <= -6000 and sum(t["pnl"] for t in res.trades[:first_cut - 1]) > -6000
+    assert res.trades[first_cut]["shares"] < 0.6 * res.trades[first_cut - 1]["shares"]
+    # after the 10% breaker no more entries; the last trade is the one that crossed it
+    total = sum(t["pnl"] for t in res.trades)
+    assert -11500 < total <= -10000 and len(res.trades) < len(days) - 1

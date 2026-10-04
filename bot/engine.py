@@ -26,7 +26,7 @@ class Engine:
         if self.start_equity is None:
             self.start_equity = self.equity()
         held = {p.symbol: p.qty for p in self.broker.positions()}
-        for sym in self.cfg.symbols:
+        for sym in (self.cfg.symbols if self.cfg.run_sma_demo else []):  # RUN_SMA_DEMO=no leaves only status/commands
             try:
                 closes = self.broker.history(sym, self.strategy.warmup + 1)
                 side = self.strategy.signal(closes, held.get(sym, 0))

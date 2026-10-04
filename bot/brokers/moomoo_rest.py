@@ -15,6 +15,7 @@ from datetime import date, datetime
 
 import httpx
 
+from ..intraday.bars import NY
 from ..models import Order, Position
 from .base import Broker
 from ..moomoo_oauth import BASE, AuthError, OAuthSession, TokenStore
@@ -120,6 +121,54 @@ class MoomooRestBroker(Broker):
             self._sleep(0.15)
         bars = bars_from_moomoo(rows)
         return [b for b in bars if start <= b.ts.date() <= end]
+
+    # ---- live paper-trading support (simulated account only; REAL is deliberately not implemented) ------
+    SIM_STATUS = {2: "OPEN", 3: "PARTIAL", 4: "FILLED", 5: "CANCELLED", 6: "REJECTED"}
+
+    def _sim_only(self, what: str):
+        if self.real:
+            raise NotImplementedError(f"{what} is only implemented for the simulated account (paper engine)")
+
+    def snapshot(self, symbols: list[str]) -> dict:
+        """{symbol: {last, bid, ask, ts}} where ts is the quote's update time (None if the service gave none)."""
+        data = self._call("POST", "/api/v1.0/quote/snapshot", json={"code_list": [self._code(x) for x in symbols]})
+        out = {}
+        for r in data.get("snapshot_list", []):
+            ut = int(r.get("update_time") or 0)
+            out[r["code"].split(".", 1)[-1]] = {
+                "last": float(r["last_price"]), "bid": float(r.get("bid_price") or 0), "ask": float(r.get("ask_price") or 0),
+                "ts": datetime.fromtimestamp(ut / 1000, tz=NY) if ut > 0 else None}
+        return out
+
+    def recent_bars(self, symbol: str, n: int = 15):
+        from ..intraday.data import bars_from_moomoo
+        data = self._call("GET", f"/api/v1.0/quote/{self._code(symbol)}/history-kline", params={
+            "end": datetime.now(NY).date().isoformat(), "ktype": 1, "autype": 1, "num": n, "extended_time": 1})
+        return bars_from_moomoo(data.get("kline_list", []))[-n:]
+
+    def equity(self) -> float:
+        if self.real:
+            return float(self._call("GET", f"/api/v1.0/accounts/{self.acc_id}/funds", params={"currency": "USD"})["total_assets"])
+        return float(self._call("GET", f"/api/v1.0/sim-trade/{self.acc_id}/cash-info")["total_asset"])
+
+    def _sim_orders(self) -> list[dict]:
+        self._sim_only("order queries")
+        return (self._call("GET", f"/api/v1.0/sim-trade/{self.acc_id}/orders") or {}).get("orders", [])
+
+    def order_status(self, order_id: str) -> dict:
+        for o in self._sim_orders():
+            if str(o["order_id"]) == str(order_id):
+                return {"status": self.SIM_STATUS.get(int(o["status"]), "UNKNOWN"), "filled_qty": float(o.get("cum_qty") or 0),
+                        "avg_price": float(o.get("avg_fill_price") or 0)}
+        return {"status": "UNKNOWN", "filled_qty": 0.0, "avg_price": 0.0}
+
+    def open_orders(self) -> list[dict]:
+        return [{"id": str(o["order_id"]), "symbol": o["symbol"], "side": "BUY" if int(o["side"]) == 1 else "SELL"}
+                for o in self._sim_orders() if int(o["status"]) in (2, 3)]
+
+    def cancel_order(self, order_id: str) -> None:
+        self._sim_only("cancel")
+        self._call("POST", f"/api/v1.0/sim-trade/{self.acc_id}/orders/{order_id}/cancel", json={})
 
     def last_price(self, symbol):
         data = self._call("POST", "/api/v1.0/quote/snapshot", json={"code_list": [self._code(symbol)]})

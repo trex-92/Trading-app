@@ -35,7 +35,7 @@ supabase/migrations/   schema + RLS + realtime publication
 | Webull adapter | skeleton only |
 | Strategies A/B/C, shared risk layer, backtester, worker | 33 new tests on synthetic data; **never run on real prices** |
 | Strategy tabs in the app | rendered and exercised in a browser against a mocked backend; **not against your Supabase** |
-| Live/paper engine for A/B/C | **not built** (see docs/strategies-review.md) |
+| Paper engine for A/B/C (`LIVE_STRATEGIES=yes`) | 17 tests with a fake broker, matches the backtest on identical prices; **never run against the real simulated account**. Stops are held by the bot. |
 
 ## Setup
 1. Create a Supabase project, apply `supabase/migrations/*.sql` (`npx supabase db push` or the SQL editor).
@@ -67,7 +67,8 @@ Tabs: Scalp / Trend / Range, each with a budget (capped at the account balance, 
 trigger), a backtest runner, and a paper-trade journal. Backtests are queued from the app and executed by the bot worker
 (needs `BROKER=moomoo_rest`). Offline: `python -m bot.intraday.cli --strategy ALL --synthetic` or `--csv-dir data`.
 Read `docs/strategies-review.md` first: it lists what the spec could not do on this broker and every assumption made.
-New DB objects: `supabase/migrations/20261005000000_strategies.sql` (apply with `supabase db push`).
+New DB objects: `supabase/migrations/20261005000000_strategies.sql` and `20261006000000_engine_status.sql` (apply with `supabase db push`).
+Rules (v2): 1% risk with a hard 1% ceiling, 2% daily loss, drawdown breakers at 6% (risk 0.5%) and 10% (stop); see the top of `docs/strategies-review.md`.
 Windows needs the time-zone database: `python -m pip install tzdata` (or `pip install -e .`, which installs it).
 
 ## Notes

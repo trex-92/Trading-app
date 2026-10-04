@@ -39,6 +39,7 @@ class Config:
     max_position_qty: int = field(default_factory=lambda: int(os.getenv("MAX_POSITION_QTY", "10")))
     max_orders_per_day: int = field(default_factory=lambda: int(os.getenv("MAX_ORDERS_PER_DAY", "20")))
     max_daily_loss: float = field(default_factory=lambda: float(os.getenv("MAX_DAILY_LOSS", "200")))
+    run_sma_demo: bool = field(default_factory=lambda: os.getenv("RUN_SMA_DEMO", "yes") == "yes")
     command_poll_seconds: int = field(default_factory=lambda: int(os.getenv("COMMAND_POLL_SECONDS", "3")))
     supabase_url: str = field(default_factory=lambda: os.getenv("SUPABASE_URL", ""))
     supabase_service_key: str = field(default_factory=lambda: os.getenv("SUPABASE_SERVICE_ROLE_KEY", ""))

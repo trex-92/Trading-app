@@ -1,4 +1,4 @@
-import type { BacktestResult, JournalTrade, StrategyCode, StrategyConfig } from './types';
+import type { BacktestResult, EngineRow, JournalTrade, StrategyCode, StrategyConfig } from './types';
 
 export const PAPER_TRADES_REQUIRED = 100;
 export const MAX_BACKTEST_DAYS = 90;
@@ -97,3 +97,19 @@ export function journalProgress(trades: JournalTrade[], mode: 'paper' | 'live' =
 }
 
 export const fmtR = (r: number | null | undefined) => (r == null ? '-' : `${r >= 0 ? '+' : ''}${r.toFixed(2)}R`);
+
+export const ENGINE_OFFLINE_AFTER_S = 90;
+
+/** One honest line about the engine plus a severity for colouring. */
+export function engineSummary(row: EngineRow | null, now: Date, code: StrategyCode): { text: string; level: 'ok' | 'warn' | 'bad' } {
+  if (!row) return { text: 'Paper engine has not reported yet. Start the bot with LIVE_STRATEGIES=yes.', level: 'warn' };
+  const age = (now.getTime() - new Date(row.updated_at).getTime()) / 1000;
+  if (age > ENGINE_OFFLINE_AFTER_S) return { text: `Engine offline: last report ${Math.round(age / 60)} min ago.`, level: 'bad' };
+  const s = row.state;
+  if (s.halt_reason) return { text: `New entries halted: ${s.halt_reason}`, level: 'bad' };
+  if (s.session === 'closed') return { text: 'Market closed. The engine is waiting for the next session.', level: 'ok' };
+  if (!s.feed_ok) return { text: 'Price feed stale: no new entries, and bot-held stops are not being watched.', level: 'bad' };
+  if (s.blocked_today) return { text: `No trading today (${s.blocked_today.replace('_', ' ')}).`, level: 'warn' };
+  if (!s.enabled.includes(code)) return { text: 'Engine running. This strategy is not enabled or has no budget.', level: 'warn' };
+  return { text: 'Engine running on the simulated account.', level: 'ok' };
+}

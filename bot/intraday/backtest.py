@@ -17,7 +17,7 @@ from .bars import Bar, is_premarket, is_regular, tod
 from .calendar import Calendar
 from .context import DayContext, TickerState
 from .params import SharedParams
-from .risk import DayRisk, size_position
+from .risk import DayRisk, DrawdownGuard, size_position
 from .stats import summarize
 from .strategies import Signal, Strategy
 
@@ -71,6 +71,7 @@ class Backtester:
         states = {t: TickerState() for t in universe}
         prior: dict[str, dict | None] = {t: None for t in universe}
         self.equity, self.trades, self.curve = self.budget, [], []
+        self.guard, self.breaker_events = DrawdownGuard(self.shared), []
         self.skipped: dict[str, int] = {}
         for di, day in enumerate(days):
             self.day = day
@@ -111,6 +112,10 @@ class Backtester:
             notes.append("WARNING: no event calendar configured. FOMC, CPI/NFP and half days were NOT excluded.")
         if len(days) <= self.warmup_days:
             notes.append("Not enough days: the first day is used for indicator warm-up and prior-day levels.")
+        for day, level, dd in self.breaker_events:
+            notes.append(f"Drawdown breaker {level} tripped on {day} at {dd}% from peak: " + (
+                f"risk per trade cut to {self.shared.breaker1_risk_pct}% until a new equity peak." if level == 1 else
+                "live trading would be disabled and the account returned to paper, so no further trades are simulated."))
         if len(self.trades) < 100:
             notes.append(f"Only {len(self.trades)} trades: too few for the averages to mean much.")
         return notes
@@ -125,14 +130,14 @@ class Backtester:
             return
         sigs = [s for st in self.strategies if self.lock.get(ticker, st.family) == st.family
                 for s in [st.on_bar(ctx, new5)] if s]
-        if self.pos or self.pending or not sigs:
+        if self.pos or self.pending or not sigs or self.guard.live_disabled:
             return
         sig = sigs[0]
         if self.risk.can_enter(self.shared):
             return
         if self.not_before and tod(sig.ts) < self.not_before:
             return
-        sizing = size_position(self.equity, sig.entry, sig.stop, self.shared)
+        sizing = size_position(self.equity, sig.entry, sig.stop, self.shared, self.guard.risk_pct)
         if sizing["skip"]:
             self.skipped[sizing["skip"].split(" ")[0]] = self.skipped.get(sizing["skip"].split(" ")[0], 0) + 1
             return
@@ -194,6 +199,9 @@ class Backtester:
         r = net / (pos.shares * (sig.entry - sig.stop))
         self.equity += net
         self.risk.record(net)
+        before = self.guard.level
+        if self.guard.record(net, self.budget) > before:
+            self.breaker_events.append((self.day.isoformat(), self.guard.level, round(self.guard.drawdown_pct(self.budget), 2)))
         self.trades.append({
             "date": self.day.isoformat(), "ticker": sig.ticker, "strategy": sig.strategy,
             "entry_ts": pos.entry_ts.isoformat(), "entry": round(pos.entry, 4), "planned_entry": sig.entry,

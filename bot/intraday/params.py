@@ -22,9 +22,10 @@ def apply_overrides(obj, overrides: dict | None):
 
 @dataclass(frozen=True)
 class SharedParams:
-    risk_per_trade_pct: float = 0.5
+    risk_per_trade_pct: float = 1.0
+    risk_hard_ceiling_pct: float = 1.0   # the bot refuses to start if risk_per_trade_pct is above this
     max_notional_pct: float = 100.0
-    daily_max_loss_pct: float = 1.5
+    daily_max_loss_pct: float = 2.0     # two full losses at 1% risk
     max_trades_per_day: int = 3
     stop_after_consecutive_losses: int = 2
     max_open_positions: int = 1
@@ -32,10 +33,19 @@ class SharedParams:
     # ASSUMPTION (not from the spec): all-in round-trip cost per share (commission + half-spread each way).
     cost_per_share_round_trip: float = 0.02
     allow_short: bool = False
+    # Drawdown breakers, measured from the peak of the strategy capital (budget + realized P&L).
+    breaker1_pct: float = 6.0            # at this drawdown, risk per trade drops to breaker1_risk_pct
+    breaker1_risk_pct: float = 0.5
+    breaker2_pct: float = 10.0           # at this drawdown, live trading is disabled and we go back to paper
 
     def validate(self) -> "SharedParams":
-        if self.risk_per_trade_pct > 1.0:
-            raise ValueError("risk_per_trade_pct must never exceed 1.0")
+        if self.risk_hard_ceiling_pct > 1.0:
+            raise ValueError("risk_hard_ceiling_pct may not be above 1.0")
+        if self.risk_per_trade_pct > self.risk_hard_ceiling_pct:
+            raise ValueError(f"risk_per_trade_pct {self.risk_per_trade_pct} is above the hard ceiling "
+                             f"{self.risk_hard_ceiling_pct}; refusing to start")
+        if not 0 < self.breaker1_risk_pct <= self.risk_per_trade_pct or not 0 < self.breaker1_pct < self.breaker2_pct:
+            raise ValueError("breakers need 0 < breaker1_pct < breaker2_pct and 0 < breaker1_risk_pct <= risk_per_trade_pct")
         if self.risk_per_trade_pct <= 0 or self.max_notional_pct <= 0:
             raise ValueError("risk and notional percentages must be positive")
         if self.allow_short:
@@ -70,7 +80,7 @@ class TrendParams:  # Strategy B
     crosses_since: time = time(9, 45)
     stop_buffer_atr: float = 0.1
     min_stop_pct: float = 0.3
-    max_stop_pct: float = 0.6
+    max_stop_pct: float = 1.0
     t1_r: float = 2.0
     flat_time: time = time(15, 55)
 
