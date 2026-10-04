@@ -89,3 +89,7 @@ Windows needs the time-zone database: `python -m pip install tzdata` (or `pip in
 4. Webull adapter; backtester; more strategies; AI assistant tab only if wanted.
 
 **Not financial advice.** The sample strategy is a demo, not an edge.
+
+## Running the bot on a second machine (e.g. Mac and Windows PC)
+Each machine needs its own copy: `git pull`, a venv, `bot/.env` (same Supabase values; copy it over by a private channel, it holds the service-role key), and its own Moomoo login (`python -m bot.moomoo_login`; tokens are per machine).
+Run the bot on **one machine at a time**. With `LIVE_STRATEGIES=yes` the bot refuses to start if another machine's engine reported in within the last 2 minutes. Per-machine files (`data/live_state_*.json`, journals, SG/MY paper balances, history cache) do not move between machines; open US positions are re-read from Moomoo on start, but a bot-held stop on a position opened by the other machine is not carried over, so switch only when flat.

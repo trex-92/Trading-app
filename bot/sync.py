@@ -3,11 +3,15 @@
 Uses the service-role key, so it must only ever run on the machine that hosts the bot.
 All methods swallow network errors (logged to stderr): monitoring must never stop trading.
 """
+import socket
 import sys
+from datetime import datetime, timezone
 
 import httpx
 
 from .models import Order, now
+
+HOST = socket.gethostname()
 
 
 class SupabaseSync:
@@ -96,7 +100,21 @@ class SupabaseSync:
 
     def push_engine_status(self, state: dict, market: str = "US") -> None:
         self._req("POST", "/engine_status", headers={"Prefer": "resolution=merge-duplicates"},
-                  json={"user_id": self.user_id, "market": market, "state": state, "updated_at": now()})
+                  json={"user_id": self.user_id, "market": market, "state": {**state, "host": HOST}, "updated_at": now()})
+
+    def other_live_host(self, max_age_s: int = 120) -> str | None:
+        """Name of another machine whose strategy engine reported in recently, if any (two bots would double-trade)."""
+        r = self._req("GET", "/engine_status", params={"user_id": f"eq.{self.user_id}", "select": "state,updated_at"})
+        cutoff = datetime.now(timezone.utc).timestamp() - max_age_s
+        for row in (r.json() if r else []):
+            host = (row.get("state") or {}).get("host")
+            try:
+                ts = datetime.fromisoformat(row["updated_at"].replace("Z", "+00:00")).timestamp()
+            except (KeyError, ValueError, AttributeError):
+                continue
+            if host and host != HOST and ts > cutoff:
+                return host
+        return None
 
     def get_market_configs(self) -> list[dict]:
         r = self._req("GET", "/market_configs", params={"user_id": f"eq.{self.user_id}", "select": "market,enabled,symbols,paper_balance"})

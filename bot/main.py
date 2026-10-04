@@ -60,6 +60,10 @@ def main() -> None:
                 apply_overrides(base_shared(get_market(code, markets_file)), risk_env).validate()
         except ValueError as e:
             raise SystemExit(f"Refusing to start the strategy engine: {e}")
+        other = sync.other_live_host()
+        if other:
+            raise SystemExit(f"Another bot ({other}) is already running the strategies for this account. Stop it first "
+                             f"(wait ~2 minutes after it exits), otherwise both would place orders.")
         supervisor = MarketSupervisor(sync, make_runner, markets_path=markets_file)
         threading.Thread(target=supervisor.run_forever, args=(stop,), daemon=True).start()
         print("[live] strategy engines are paper-only. Stops are held by this bot, not the broker. "

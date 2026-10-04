@@ -66,3 +66,16 @@ def test_commands_from_app_toggle_halt_and_mirror():
     assert not eng.risk.halted
     eng.tick()
     assert eng.store.sync.snaps  # tick pushes a snapshot too
+
+
+def test_other_live_host_detects_recent_foreign_engine():
+    import httpx
+    from datetime import datetime, timezone
+    from bot import sync as S
+    fresh = datetime.now(timezone.utc).isoformat()
+    def make(rows):
+        h = httpx.MockTransport(lambda req: httpx.Response(200, json=rows))
+        return S.SupabaseSync("https://x.supabase.co", "k", "u", client=httpx.Client(base_url="https://x.supabase.co/rest/v1", transport=h))
+    assert make([{"state": {"host": "other-pc"}, "updated_at": fresh}]).other_live_host() == "other-pc"
+    assert make([{"state": {"host": S.HOST}, "updated_at": fresh}]).other_live_host() is None
+    assert make([{"state": {"host": "other-pc"}, "updated_at": "2020-01-01T00:00:00+00:00"}]).other_live_host() is None
