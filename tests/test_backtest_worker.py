@@ -1,5 +1,5 @@
 import threading
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 
@@ -68,3 +68,15 @@ def test_run_forever_stops():
     stop = threading.Event()
     stop.set()
     BacktestWorker(FakeSync([]), provider, "x", log=lambda *a: None).run_forever(stop)
+
+
+def test_short_history_triggers_a_loud_warning():
+    short = lambda sym, start, end, market=None: provider(sym, end - timedelta(days=1), end, market)  # noqa: E731
+    sync = FakeSync([{"id": "short", "strategy": "A", "params": req(start="2026-09-01", end="2026-09-30")}])
+    BacktestWorker(sync, short, "nope.json", log=lambda *a: None).poll_once()
+    summary, result = sync.done["short"]
+    assert summary["notes"][0].startswith("WARNING: only") and "short" not in summary["notes"][0][:7]
+    assert "smoke_moomoo" in summary["notes"][0]
+    full = FakeSync([{"id": "full", "strategy": "A", "params": req(start="2026-09-01", end="2026-09-25")}])
+    BacktestWorker(full, provider, "nope.json", log=lambda *a: None).poll_once()
+    assert not any("only" in n and "trading days" in n for n in full.done["full"][0]["notes"])

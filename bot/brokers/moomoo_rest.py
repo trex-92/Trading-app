@@ -11,7 +11,7 @@ and Bearer scopes needed (trade:read/trade:write/quote:read).
 """
 import os
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import httpx
 
@@ -122,7 +122,34 @@ class MoomooRestBroker(Broker):
             cursor = str(nxt)
             self._sleep(0.15)
         bars = bars_from_moomoo(rows, market.tz)
-        return [b for b in bars if start <= b.ts.date() <= end]
+        bars = [b for b in bars if start <= b.ts.date() <= end]
+        return self._top_up_missing_days(symbol, start, end, market, ktype, bars)
+
+    def _top_up_missing_days(self, symbol, start, end, market, ktype, bars):
+        """Paging sometimes stops early (observed: ~1000 bars = one day). Ask for each missing weekday on its own, newest
+        first, and give up after 3 empty days in a row (history depth reached). Heuristic: verify with the smoke test."""
+        have = {b.ts.astimezone(market.tz).date() for b in bars}
+        got, empty = {}, 0
+        d = end
+        while d >= start and empty < 3:
+            if d.weekday() < 5 and d not in have:
+                params = {"start": d.isoformat(), "end": d.isoformat(), "ktype": ktype, "autype": 1, "num": 370}
+                if market.extended_hours:
+                    params["extended_time"] = 1
+                try:
+                    data = self._call("GET", f"/api/v1.0/quote/{self._code(symbol, market)}/history-kline", params=params)
+                except MoomooError:
+                    data = {}
+                from ..intraday.data import bars_from_moomoo
+                day_bars = [b for b in bars_from_moomoo(data.get("kline_list", []), market.tz) if b.ts.date() == d]
+                if day_bars:
+                    got[d], empty = day_bars, 0
+                else:
+                    empty += 1
+                self._sleep(0.15)
+            d -= timedelta(days=1)
+        extra = [b for day in got.values() for b in day]
+        return sorted(bars + extra, key=lambda b: b.ts)
 
     def basic_info(self, codes: list[str]) -> list[dict]:
         """Static facts (name, board lot, exchange, state) for full codes like 'MY.1155'. Unknown codes are simply absent."""

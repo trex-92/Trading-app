@@ -327,6 +327,15 @@ class StubBroker:
     def __init__(self, fail_my=None, fail_sg=None):
         self.fail = {"MY": fail_my, "SG": fail_sg}
 
+    def _call(self, method, path, params=None, **kw):
+        """Raw history-kline: one page ending on `end` (date string), like the real endpoint for a short window."""
+        day = date.fromisoformat(params["end"])
+        while day.weekday() >= 5:
+            day -= timedelta(days=1)
+        rows = [{"time_key": int(b.ts.timestamp() * 1000), "open": b.open, "high": b.high, "low": b.low, "close": b.close,
+                 "volume": b.volume} for b in synthetic_day(day, "range", 1, 100.0, US)]
+        return {"kline_list": rows[:370], "next_time": None}
+
     def basic_info(self, codes):
         return [{"code": c, "name": "Maybank", "lot_size": 100, "exchange": "BMS", "state": "NORMAL"} for c in codes if c == "MY.1155"]
 
@@ -353,6 +362,7 @@ def test_smoke_checks_run_end_to_end_and_explain_refusals():
     run_checks(StubBroker(), out=lines.append)
     text = "\n".join(lines)
     assert "[FAIL]" not in text and "matches the configured hours" in text and "regular" in text and "age=" in text
+    assert "30-day request, page 1: 370 bars" in text and "single day" in text and "regular-session" in text
     assert "MY.1155: Maybank | board lot 100 | exchange BMS" in text and "SG.D05: NOT RECOGNISED" in text
     lines.clear()
     run_checks(StubBroker(fail_sg="realtime quote permission required", fail_my="unsupported market"), out=lines.append)

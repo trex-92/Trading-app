@@ -211,3 +211,32 @@ def test_paper_engine_calls_refuse_the_real_account(tmp_path):
     for call in (lambda: b.order_status("1"), lambda: b.open_orders(), lambda: b.cancel_order("1")):
         with pytest.raises(NotImplementedError):
             call()
+
+
+def test_history_tops_up_days_the_paging_missed(tmp_path):
+    """Paging returns only the newest day; single-day requests recover the earlier ones; 3 empty days end the search."""
+    from datetime import date
+    from bot.intraday.data import synthetic_day
+    from bot.intraday.market import US
+
+    def rows(day):
+        return [{"time_key": int(b.ts.timestamp() * 1000), "open": b.open, "high": b.high, "low": b.low, "close": b.close,
+                 "volume": b.volume} for b in synthetic_day(day, "range", 1, 100.0, US)]
+
+    available = {date(2026, 9, 29), date(2026, 9, 28), date(2026, 9, 25)}  # older than the 25th: not served
+    calls = []
+
+    def h(req):
+        s, e = req.url.params["start"], req.url.params["end"]
+        calls.append((s, e))
+        if s == e:
+            d = date.fromisoformat(s)
+            return ok_sim({"kline_list": rows(d) if d in available else []})
+        return ok_sim({"kline_list": rows(date(2026, 9, 30)), "next_time": 123})   # the first page, then nothing useful
+
+    b = broker(tmp_path, h)
+    bars = b.intraday_bars("SPY", date(2026, 9, 1), date(2026, 9, 30))
+    days = sorted({x.ts.date() for x in bars})
+    assert days == [date(2026, 9, 25), date(2026, 9, 28), date(2026, 9, 29), date(2026, 9, 30)]
+    single_day_calls = [c for c in calls if c[0] == c[1]]
+    assert len(single_day_calls) <= 3 + len(available)     # gave up after three empty days instead of asking for all of September

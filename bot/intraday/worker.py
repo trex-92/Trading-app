@@ -4,6 +4,7 @@ import threading
 from datetime import date, datetime, timedelta
 
 from .calendar import Calendar
+from .data import business_days
 from .market import explain_error, get_market
 from .runner import NAMES, run_backtest
 
@@ -55,6 +56,13 @@ class BacktestWorker:
                 raise RuntimeError("no price data returned for that range (market holidays, or history not available)")
             res = run_backtest([run["strategy"]], data, req["budget"], req["overrides"],
                                Calendar.load(self.calendar_path, market.code), market)
+            expected = len(business_days(req["start"], req["end"]))
+            got = min((c["days"] for c in res["data"].values()), default=0)
+            if expected >= 5 and got < 0.7 * expected:
+                msg = (f"WARNING: only {got} of about {expected} trading days of 1-minute data came back from Moomoo, so this "
+                       f"result covers a much shorter period than you asked for. Moomoo may keep only a short 1-minute history; "
+                       f"run python -m bot.smoke_moomoo to see how far back it goes.")
+                res["notes"].insert(0, msg)
             res["request"] = {**{k: v for k, v in req.items() if k not in ("start", "end")},
                               "start": req["start"].isoformat(), "end": req["end"].isoformat()}
             summary = {"stats": res["stats"], "notes": res["notes"], "request": res["request"],
