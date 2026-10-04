@@ -5,7 +5,7 @@ import { Card, ThemedText } from '@/components/themed';
 import { Row } from '@/features/bot/components';
 import { fetchBacktestResult } from '@/lib/providers/strategies';
 import { useTheme } from '@/hooks/use-theme';
-import { MARKETS, defaultRange, equityBars, fmtR, money, parseTickers, validateRange } from '../calculations';
+import { MARKETS, defaultRange, equityBars, fmtR, funnelRows, money, parseTickers, validateRange } from '../calculations';
 import { useStrategies } from '../StrategiesContext';
 import type { BacktestResult, BacktestRun, MarketCode, StrategyCode } from '../types';
 
@@ -142,11 +142,29 @@ function RunView({ run, onDelete }: { run: BacktestRun; onDelete: () => void }) 
         </>
       )}
       {loading && <ActivityIndicator />}
-      {result && <ResultDetails result={result} start={req.budget} noTrades={s.n_trades === 0} />}
+      {result && <ResultDetails result={result} start={req.budget} noTrades={s.n_trades === 0} code={run.strategy} />}
       {run.summary!.notes.map((n, i) => (
         <ThemedText key={i} type="small" themeColor={n.startsWith('WARNING') ? 'warning' : 'textSecondary'}>• {n}</ThemedText>
       ))}
       <Pressable onPress={onDelete}><ThemedText type="small" themeColor="accent">Delete this run</ThemedText></Pressable>
+    </View>
+  );
+}
+
+function Funnel({ result, code }: { result: BacktestResult; code: StrategyCode }) {
+  const rows = funnelRows(result.funnel, code);
+  if (rows.length === 0) return null;
+  return (
+    <View style={{ gap: 4 }}>
+      <ThemedText type="bold">Where setups were lost</ThemedText>
+      <ThemedText type="small" themeColor="textSecondary">
+        Each minute or bar in the entry window is counted once: either it passed, or it is listed under the first condition that failed.
+      </ThemedText>
+      {rows.map((r) => (
+        <Row key={r.key}
+          left={<ThemedText type="small" themeColor={r.lost ? 'warning' : 'text'}>{r.lost ? 'Lost: ' : ''}{r.label}</ThemedText>}
+          right={<ThemedText type="small" themeColor={r.lost ? 'warning' : 'text'}>{r.count.toLocaleString()}</ThemedText>} />
+      ))}
     </View>
   );
 }
@@ -158,7 +176,7 @@ function Stat({ label, value, sub, good }: { label: string; value: string; sub?:
   );
 }
 
-function ResultDetails({ result, start, noTrades }: { result: BacktestResult; start: number; noTrades: boolean }) {
+function ResultDetails({ result, start, noTrades, code }: { result: BacktestResult; start: number; noTrades: boolean; code: StrategyCode }) {
   const theme = useTheme();
   const bars = equityBars(result.equity_curve, start);
   return (
@@ -179,6 +197,7 @@ function ResultDetails({ result, start, noTrades }: { result: BacktestResult; st
           {noTrades && result.skipped.cost ? ' The cost rule (fees above 10% of the risk per trade) removed every signal: with these fee assumptions the strategy cannot trade here. Check the fee settings.' : ''}
         </ThemedText>
       )}
+      <Funnel result={result} code={code} />
       <ThemedText type="bold">Data used</ThemedText>
       {Object.entries(result.data).map(([sym, d]) => (
         <ThemedText key={sym} type="small" themeColor={d.days < 5 ? 'warning' : 'textSecondary'}>

@@ -62,4 +62,4 @@ def run_backtest(codes: list[str], data: dict[str, list[Bar]], budget: float, ov
                        "has_premarket": any(market.is_pre(b.ts) for b in bars)}
     return {"strategies": codes, "market": market.code, "currency": market.currency, "budget": budget, "stats": res.stats, "notes": res.notes, "skipped": res.skipped,
             "equity_curve": res.equity_curve[-MAX_TRADES_RETURNED:], "trades": res.trades[-MAX_TRADES_RETURNED:],
-            "trades_total": len(res.trades), "data": coverage}
+            "trades_total": len(res.trades), "data": coverage, "funnel": res.funnel}

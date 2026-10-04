@@ -78,6 +78,7 @@ export type BacktestResult = {
   equity_curve: { ts: string; equity: number }[];
   data: Record<string, { bars: number; days: number; first: string | null; last: string | null; has_premarket: boolean }>;
   skipped: Record<string, number>;
+  funnel?: Record<string, Record<string, number>>;
 };
 
 export type JournalTrade = {

@@ -321,3 +321,51 @@ def test_backtest_cuts_risk_at_6_percent_and_stops_at_10_percent():
     # after the 10% breaker no more entries; the last trade is the one that crossed it
     total = sum(t["pnl"] for t in res.trades)
     assert -11500 < total <= -10000 and len(res.trades) < len(days) - 1
+
+
+# ---- funnel: where setups were lost ---------------------------------------------------------------------------------
+def test_funnel_counts_reconcile_for_every_strategy():
+    days = business_days(date(2026, 9, 1), date(2026, 9, 25))
+    trend = synthetic_history(days, ["trend", "range"], ["SPY", "QQQ"])
+    for strat, prefix in ((Scalp(), "window_minutes"), (Trend(), "window_bars"), (Range(), "window_bars")):
+        res = Backtester([strat], SharedParams(), 100000).run(trend)
+        f, eng = res.funnel[strat.name], res.funnel["engine"]
+        window = f[prefix]
+        failed = sum(v for k, v in f.items() if k.startswith("regime_failed_"))
+        regime_key = "regime_minutes" if strat.name == "A" else "regime_bars"
+        # every minute/bar inside the entry window is counted exactly once: passed, or lost to a named condition
+        assert window > 0 and failed + f.get(regime_key, 0) == window, strat.name
+        assert f.get("signals", 0) <= f.get("triggers", f.get("setups", 0)) or strat.name == "C"
+        # signals end up as trades only through the engine's gates
+        assert eng.get("signals_seen", 0) >= eng.get("orders_placed", 0) >= eng.get("entries_filled", 0)
+        assert eng.get("entries_filled", 0) == len(res.trades)
+
+
+def test_funnel_names_the_condition_that_removed_the_setups():
+    days = business_days(date(2026, 9, 1), date(2026, 9, 25))
+    rng_only = synthetic_history(days, ["range"], ["SPY"])
+    f = Backtester([Scalp()], SharedParams(), 100000).run(rng_only).funnel["A"]
+    assert f.get("regime_minutes", 0) == 0 and f["window_minutes"] > 0          # a range market never looks like an uptrend
+    assert sum(v for k, v in f.items() if k.startswith("regime_failed_")) == f["window_minutes"]
+    c = Backtester([Range()], SharedParams(), 100000).run(synthetic_history(days, ["trend"], ["SPY"])).funnel["C"]
+    assert c.get("regime_bars", 0) == 0 and c.get("regime_failed_too_few_vwap_crosses", 0) > 0
+
+
+def test_engine_funnel_records_blocks_and_skips():
+    r = run([Fixed([40, 80, 120, 160])], STOPS)
+    eng = r.funnel["engine"]
+    assert eng["entries_filled"] == 2 and any(k.startswith("blocked: ") for k in eng)
+    tiny = run([Fixed([40])], budget=50)
+    assert tiny.funnel["engine"]["skipped_shares"] == 1 and tiny.trades == []
+    unfilled = run([Fixed([40])], {41: (101, 101.2, 100.8, 101)})
+    assert unfilled.funnel["engine"]["entries_not_filled"] == 1
+
+
+def test_small_budget_is_flagged():
+    big_price = {i: (500, 500.05, 499.95, 500) for i in range(390)}
+    data = {"SPY": mkday(D1, big_price) + mkday(D2, {**big_price, 45: (500, 500.1, 498.8, 499.0)})}
+    res = Backtester([Fixed([40])], SharedParams(), 2000).run(data)    # $2,000 at $500 a share
+    assert res.trades and res.trades[0]["shares"] < 10
+    assert any(n.startswith("WARNING: the budget is small") for n in res.notes)
+    ok = run([Fixed([40])], {45: (100, 100.1, 98.9, 99.2)})
+    assert not any("budget is small" in n for n in ok.notes)

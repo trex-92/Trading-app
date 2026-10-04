@@ -10,6 +10,8 @@ Fill model (deliberately conservative, all assumptions are written down here and
    data does not have, so they are NOT applied in backtests.
 """
 import math
+import statistics
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import date, datetime
 
@@ -48,6 +50,7 @@ class Result:
     equity_curve: list
     notes: list
     skipped: dict
+    funnel: dict = field(default_factory=dict)
 
 
 class Backtester:
@@ -76,6 +79,7 @@ class Backtester:
         self.equity, self.trades, self.curve = self.budget, [], []
         self.guard, self.breaker_events = DrawdownGuard(self.shared), []
         self.skipped: dict[str, int] = {}
+        self.funnel = Counter()
         for di, day in enumerate(days):
             self.day = day
             tradable = di >= self.warmup_days and self.calendar.blocked(day) is None
@@ -105,7 +109,9 @@ class Backtester:
                 if c.bars1:
                     prior[t] = {"high": c.hod, "low": c.lod, "close": c.bars1[-1].close}
         notes = self._notes(days)
-        return Result(self.trades, summarize(self.trades, self.budget), self.curve, notes, self.skipped)
+        funnel = {s.name: s.funnel for s in self.strategies}
+        funnel["engine"] = dict(self.funnel)
+        return Result(self.trades, summarize(self.trades, self.budget), self.curve, notes, self.skipped, funnel)
 
     def _notes(self, days) -> list[str]:
         sh = self.shared
@@ -122,6 +128,10 @@ class Backtester:
             notes.append(f"Drawdown breaker {level} tripped on {day} at {dd}% from peak: " + (
                 f"risk per trade cut to {self.shared.breaker1_risk_pct}% until a new equity peak." if level == 1 else
                 "live trading would be disabled and the account returned to paper, so no further trades are simulated."))
+        shares = [t["shares"] for t in self.trades]
+        if shares and statistics.median(shares) < 10:
+            notes.append(f"WARNING: the budget is small for these prices (median position {statistics.median(shares):g} shares). "
+                         "With so few shares the 1% risk rule and the 50% exit at target 1 cannot work as designed; use a larger budget.")
         if len(self.trades) < 100:
             notes.append(f"Only {len(self.trades)} trades: too few for the averages to mean much.")
         return notes
@@ -137,19 +147,32 @@ class Backtester:
             return
         sigs = [s for st in self.strategies if self.lock.get(ticker, st.family) == st.family
                 for s in [st.on_bar(ctx, new5)] if s]
-        if self.pos or self.pending or not sigs or self.guard.live_disabled:
+        if not sigs:
+            return
+        self.funnel["signals_seen"] += 1
+        if self.pos or self.pending:
+            self.funnel["ignored_position_already_open"] += 1
+            return
+        if self.guard.live_disabled:
+            self.funnel["blocked_drawdown_breaker"] += 1
             return
         sig = sigs[0]
-        if self.risk.can_enter(self.shared):
+        why = self.risk.can_enter(self.shared)
+        if why:
+            self.funnel[f"blocked: {why}"] += 1
             return
         if self.not_before and sig.elapsed < self.not_before:
+            self.funnel["blocked_event_day_early_entry"] += 1
             return
         sizing = size_position(self.equity, sig.entry, sig.stop, self.shared, self.guard.risk_pct)
         if sizing["skip"]:
-            self.skipped[sizing["skip"].split(" ")[0]] = self.skipped.get(sizing["skip"].split(" ")[0], 0) + 1
+            key = sizing["skip"].split(" ")[0]
+            self.skipped[key] = self.skipped.get(key, 0) + 1
+            self.funnel[f"skipped_{key}"] += 1
             return
         sig.regime = {**sig.regime, "sizing": sizing}
         self.pending = sig
+        self.funnel["orders_placed"] += 1
 
     def _try_fill(self, bar, ctx):
         sig, self.pending = self.pending, None
@@ -158,7 +181,9 @@ class Backtester:
         elif bar.low <= sig.entry:
             px = sig.entry
         else:
+            self.funnel["entries_not_filled"] += 1
             return  # price ran away: order expires unfilled
+        self.funnel["entries_filled"] += 1
         sizing = sig.regime["sizing"]
         self.pos = Position(sig, bar.ts, px, sizing["shares"], sig.stop, sizing, entry_elapsed=ctx.elapsed - 1)
         self.risk.trades += 1

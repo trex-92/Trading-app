@@ -148,3 +148,66 @@ export function engineSummary(row: EngineRow | null, now: Date, code: StrategyCo
   if (s.market && s.market !== 'US') return { text: `Engine running on the bot's simulated ${s.currency ?? ''} account (real quotes).`, level: 'ok' };
   return { text: 'Engine running on the simulated account.', level: 'ok' };
 }
+
+/** Plain-language names for the funnel counters the backtester records. `lost` rows are where setups were removed. */
+const FUNNEL: Record<string, { label: string; lost?: boolean }> = {
+  days_evaluated: { label: 'Trading days checked' },
+  window_minutes: { label: 'Minutes inside the entry window' },
+  window_bars: { label: '5-minute bars inside the entry window' },
+  regime_failed_warming_up: { label: 'Indicators still warming up', lost: true },
+  regime_failed_close_above_vwap: { label: 'Price below VWAP', lost: true },
+  regime_failed_vwap_rising: { label: 'VWAP not rising', lost: true },
+  regime_failed_ema9_above_ema20: { label: 'EMA9 not above EMA20', lost: true },
+  regime_failed_emas_rising: { label: 'EMA9 and EMA20 not both rising', lost: true },
+  regime_failed_vwap_crosses_ok: { label: 'Too many VWAP crossings (choppy)', lost: true },
+  regime_failed_broke_opening_range: { label: 'Never closed above the opening range', lost: true },
+  regime_failed_above_opening_range: { label: 'Price not above the opening range', lost: true },
+  regime_failed_too_few_vwap_crosses: { label: 'Not choppy enough for a range day', lost: true },
+  regime_failed_range_width: { label: 'Range too narrow or too wide', lost: true },
+  regime_minutes: { label: 'Minutes with a valid uptrend' },
+  regime_bars: { label: 'Bars with a valid setup regime' },
+  days_regime_on: { label: 'Days with a valid uptrend' },
+  days_killed: { label: 'Days stopped by the range-break rule', lost: true },
+  pullbacks: { label: 'Pullbacks to the 5-minute EMA9' },
+  pullback_bars: { label: 'Pullback bars' },
+  setups: { label: 'Bounces at the bottom of the range' },
+  limit_trades_per_ticker: { label: 'Already traded this symbol twice today', lost: true },
+  triggers: { label: 'Bounce triggers (price recovered)' },
+  rejected_stop_too_wide: { label: 'Stop wider than the strategy allows', lost: true },
+  rejected_stop_band: { label: 'Stop outside the allowed distance band', lost: true },
+  rejected_key_level: { label: 'A key level blocks the first target', lost: true },
+  rejected_target_too_close: { label: 'Target less than 2R away', lost: true },
+  signals: { label: 'Signals produced' },
+  signals_seen: { label: 'Signals reaching the risk rules' },
+  ignored_position_already_open: { label: 'Another trade was already open', lost: true },
+  blocked_drawdown_breaker: { label: 'Stopped by the 10% drawdown breaker', lost: true },
+  blocked_event_day_early_entry: { label: 'Too early on an event day', lost: true },
+  skipped_cost: { label: 'Fees too high compared with the risk', lost: true },
+  skipped_shares: { label: 'Budget too small for even one share', lost: true },
+  skipped_invalid: { label: 'Invalid entry/stop', lost: true },
+  orders_placed: { label: 'Orders placed' },
+  entries_not_filled: { label: 'Orders the price ran away from', lost: true },
+  entries_filled: { label: 'Trades taken' },
+};
+
+export type FunnelRow = { key: string; label: string; count: number; lost: boolean };
+
+/** Ordered rows for the strategy's own stages followed by the engine's gates; zero counts are hidden. */
+export function funnelRows(funnel: Record<string, Record<string, number>> | undefined, code: StrategyCode): FunnelRow[] {
+  if (!funnel) return [];
+  const rows: FunnelRow[] = [];
+  for (const section of [code, 'engine']) {
+    for (const [key, count] of Object.entries(funnel[section] ?? {})) {
+      if (!count) continue;
+      const meta = FUNNEL[key];
+      const blocked = key.startsWith('blocked: ');
+      rows.push({
+        key: `${section}.${key}`,
+        label: blocked ? `Blocked by risk rule: ${key.slice(9)}` : meta?.label ?? key.replace(/_/g, ' '),
+        count,
+        lost: blocked || Boolean(meta?.lost),
+      });
+    }
+  }
+  return rows;
+}

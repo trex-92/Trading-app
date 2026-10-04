@@ -1,5 +1,5 @@
 import {
-  accountLimit, allocation, parseSymbols, defaultRange, engineSummary, downsample, equityBars, isIsoDate, journalProgress, parseTickers, validateBudget, validateRange,
+  accountLimit, allocation, funnelRows, parseSymbols, defaultRange, engineSummary, downsample, equityBars, isIsoDate, journalProgress, parseTickers, validateBudget, validateRange,
 } from './calculations';
 import type { JournalTrade, StrategyConfig } from './types';
 
@@ -155,5 +155,26 @@ describe('markets', () => {
     expect(engineSummary(null, now, 'A', false).text).toMatch(/switched off/);
     expect(engineSummary(row, now, 'A', true).text).toMatch(/simulated MYR account/);
     expect(engineSummary(row, now, 'A', false).text).toMatch(/no new entries/);
+  });
+});
+
+describe('funnelRows', () => {
+  it('orders the strategy stages before the engine gates, hides zeros, and marks losses', () => {
+    const rows = funnelRows({
+      A: { window_minutes: 5000, regime_failed_close_above_vwap: 2500, regime_failed_vwap_rising: 0, regime_minutes: 300, signals: 4 },
+      engine: { signals_seen: 4, 'blocked: daily loss limit reached': 1, skipped_shares: 2, entries_filled: 1 },
+    }, 'A');
+    expect(rows.map((r) => r.key)).toEqual([
+      'A.window_minutes', 'A.regime_failed_close_above_vwap', 'A.regime_minutes', 'A.signals',
+      'engine.signals_seen', 'engine.blocked: daily loss limit reached', 'engine.skipped_shares', 'engine.entries_filled',
+    ]);
+    const lost = rows.filter((r) => r.lost).map((r) => r.label);
+    expect(lost).toEqual(['Price below VWAP', 'Blocked by risk rule: daily loss limit reached', 'Budget too small for even one share']);
+    expect(rows.find((r) => r.key === 'A.window_minutes')?.count).toBe(5000);
+  });
+
+  it('copes with older results that have no funnel and unknown counters', () => {
+    expect(funnelRows(undefined, 'B')).toEqual([]);
+    expect(funnelRows({ B: { some_new_counter: 3 } }, 'B')[0]).toMatchObject({ label: 'some new counter', lost: false });
   });
 });
