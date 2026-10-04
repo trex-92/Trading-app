@@ -33,7 +33,7 @@ supabase/migrations/   schema + RLS + realtime publication
 | Moomoo REST adapter (`BROKER=moomoo_rest`, no OpenD) + OAuth 2.1/PKCE login | written from the docs, 9 tests against a mocked HTTP layer; **never called the live API** |
 | Moomoo OpenD adapter (`BROKER=moomoo`) | written against `moomoo-api`; untested |
 | Webull adapter | skeleton only |
-| Strategies A/B/C, shared risk layer, backtester, worker | 34 new tests on synthetic data; **never run on real prices** |
+| Strategies A/B/C, shared risk layer, backtester, worker | 33 new tests on synthetic data; **never run on real prices** |
 | Strategy tabs in the app | rendered and exercised in a browser against a mocked backend; **not against your Supabase** |
 | Live/paper engine for A/B/C | **not built** (see docs/strategies-review.md) |
 
