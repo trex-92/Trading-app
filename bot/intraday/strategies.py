@@ -2,11 +2,11 @@
 belong to the engine. All times are the CLOSE time of the bar being evaluated (America/New_York).
 
 Spec ambiguities I resolved are marked `# INTERPRETATION`; they are listed in docs/strategies-review.md."""
-from dataclasses import dataclass, field
-from datetime import datetime, time
+from dataclasses import dataclass
+from datetime import datetime
 
-from .bars import Bar, tod
-from .context import DayContext
+from .bars import Bar
+from .context import DayContext, IB_MIN
 from .params import RangeParams, ScalpParams, TrendParams
 
 
@@ -23,8 +23,9 @@ class Signal:
     t1_frac: float = 0.5
     time_stop_minutes: int | None = None
     time_stop_always: bool = False  # False = only until T1 is hit
-    flat: time = time(15, 55)
+    flat_min: int = 385            # trading minute at/after which any remainder is closed
     family: str = "trend"
+    elapsed: int = 0               # trading minutes elapsed when the signal was made
 
 
 class Strategy:
@@ -63,9 +64,9 @@ class Scalp(Strategy):
                 "vwap_crosses": crosses, "or_high": ctx.or_high} if ok else None
 
     def on_bar(self, ctx, new5):
-        p, t = self.p, tod(ctx.now)
+        p = self.p
         st = self._st(ctx)
-        if not (p.window_start <= t <= p.window_end):
+        if not (p.window_start_min <= ctx.elapsed <= p.window_end_min):
             return None
         reg = self.regime(ctx)
         if reg is None:
@@ -106,7 +107,8 @@ class Scalp(Strategy):
         t2 = min([entry + p.t2_r * r] + above)  # INTERPRETATION: "if nearer" = nearest of HOD / prior-day high beyond T1
         return Signal(self.name, ctx.ticker, ctx.now, entry, stop, t1, t2,
                       {**reg, "pullback_n": cur["n"], "pullback_low": lb.low, "levels": levels},
-                      time_stop_minutes=p.time_stop_minutes, time_stop_always=False, flat=p.flat_time)
+                      time_stop_minutes=p.time_stop_minutes, time_stop_always=False,
+                      flat_min=ctx.market.total_minutes - p.flat_before_close_min, elapsed=ctx.elapsed)
 
 
 # --------------------------------------------------------------------------------------------------------
@@ -120,7 +122,7 @@ class Trend(Strategy):
         if not ctx.bars5 or ctx.ema9 is None or ctx.ema20 is None or not ctx.or_ready:
             return None
         b5, vw = ctx.bars5[-1], ctx.vwap5[-1]
-        crosses = ctx.vwap_crosses(self.p.crosses_since)
+        crosses = ctx.vwap_crosses(self.p.crosses_since_min)
         ok = (b5.close > vw and b5.close > ctx.or_high and ctx.ema9 > ctx.ema20 and ctx.vwap_rising()
               and crosses <= self.p.max_vwap_crosses)
         return {"close5": b5.close, "vwap": round(vw, 4), "ema9": round(ctx.ema9, 4), "ema20": round(ctx.ema20, 4),
@@ -131,11 +133,11 @@ class Trend(Strategy):
             return None
         p, st = self.p, self._st(ctx)
         n = len(ctx.bars5)
-        b5, t = ctx.bars5[-1], tod(ctx.now)
+        b5 = ctx.bars5[-1]
         pb, st["pb"] = st.get("pb"), None
         reg = self.regime(ctx)
         sig = None
-        if (pb and pb["i"] == n - 2 and reg and not st.get("traded") and p.window_start <= t <= p.window_end
+        if (pb and pb["i"] == n - 2 and reg and not st.get("traded") and p.window_start_min <= ctx.elapsed <= p.window_end_min
                 and b5.close > pb["high"]):
             entry = round(b5.close, 4)
             stop = round(min(pb["low"], ctx.vwap) - p.stop_buffer_atr * (ctx.atr5 or 0), 4)
@@ -144,7 +146,7 @@ class Trend(Strategy):
                 st["traded"] = True
                 sig = Signal(self.name, ctx.ticker, ctx.now, entry, stop, entry + p.t1_r * r, None,
                              {**reg, "pullback_low": pb["low"], "pullback_high": pb["high"]},
-                             flat=p.flat_time)
+                             flat_min=ctx.market.total_minutes - p.flat_before_close_min, elapsed=ctx.elapsed)
         # is the bar that just closed a pullback bar? (touches the EMA9..EMA20 zone, holds above VWAP)
         if reg and ctx.ema9 and ctx.ema20 and b5.low <= ctx.ema9 and b5.high >= ctx.ema20 and b5.close > ctx.vwap5[-1]:
             st["pb"] = {"i": n - 1, "low": b5.low, "high": b5.high}
@@ -172,9 +174,9 @@ class Range(Strategy):
             return None
         w = ctx.ib_high - ctx.ib_low
         for b in new5:  # kill: any 5m close well outside the initial balance disables C for the day
-            if tod(b.ts) >= time(10, 30) and (b.close > ctx.ib_high + p.kill_band * w or b.close < ctx.ib_low - p.kill_band * w):
+            if ctx.bar5_start_min(b) >= IB_MIN and (b.close > ctx.ib_high + p.kill_band * w or b.close < ctx.ib_low - p.kill_band * w):
                 st["killed"] = True
-        if st.get("killed") or not (p.window_start <= tod(ctx.now) <= p.window_end):
+        if st.get("killed") or not (p.window_start_min <= ctx.elapsed <= p.window_end_min):
             return None
         b5 = ctx.bars5[-1]
         price = b5.close
@@ -195,7 +197,8 @@ class Range(Strategy):
         return Signal(self.name, ctx.ticker, ctx.now, entry, stop, entry + p.t1_r * r, t2,
                       {"close5": price, "vwap_crosses": crosses, "ib_high": ctx.ib_high, "ib_low": ctx.ib_low,
                        "width_pct": round(w / price * 100, 3)},
-                      time_stop_minutes=p.time_stop_minutes, time_stop_always=True, flat=p.flat_time, family="range")
+                      time_stop_minutes=p.time_stop_minutes, time_stop_always=True,
+                      flat_min=ctx.market.total_minutes - p.flat_before_close_min, family="range", elapsed=ctx.elapsed)
 
     def discretionary_exit(self, pos, ctx, new5):
         # INTERPRETATION: the kill rule also closes any open Strategy C position at that bar's close.
@@ -208,8 +211,8 @@ class Range(Strategy):
             return
         w = ctx.ib_high - ctx.ib_low
         for b in new5:
-            if tod(b.ts) >= time(10, 30) and (b.close > ctx.ib_high + self.p.kill_band * w
-                                              or b.close < ctx.ib_low - self.p.kill_band * w):
+            if ctx.bar5_start_min(b) >= IB_MIN and (b.close > ctx.ib_high + self.p.kill_band * w
+                                                    or b.close < ctx.ib_low - self.p.kill_band * w):
                 self._st(ctx)["killed"] = True
 
 

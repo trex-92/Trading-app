@@ -35,6 +35,7 @@ supabase/migrations/   schema + RLS + realtime publication
 | Webull adapter | skeleton only |
 | Strategies A/B/C, shared risk layer, backtester, worker | 33 new tests on synthetic data; **never run on real prices** |
 | Strategy tabs in the app | rendered and exercised in a browser against a mocked backend; **not against your Supabase** |
+| SGX / Bursa support (sessions with lunch breaks, lots, fees, bot-side paper account, per-market budgets and switches) | 20 new tests; app flow exercised in a browser against a mocked backend; **hours, fees and Moomoo's SG/MY data are unverified** |
 | Paper engine for A/B/C (`LIVE_STRATEGIES=yes`) | 17 tests with a fake broker, matches the backtest on identical prices; **never run against the real simulated account**. Stops are held by the bot. |
 
 ## Setup
@@ -68,6 +69,10 @@ trigger), a backtest runner, and a paper-trade journal. Backtests are queued fro
 (needs `BROKER=moomoo_rest`). Offline: `python -m bot.intraday.cli --strategy ALL --synthetic` or `--csv-dir data`.
 Read `docs/strategies-review.md` first: it lists what the spec could not do on this broker and every assumption made.
 New DB objects: `supabase/migrations/20261005000000_strategies.sql` and `20261006000000_engine_status.sql` (apply with `supabase db push`).
+Markets: US, SG (SGX), MY (Bursa). Pick which run in the app (Settings > Markets). US paper trades on Moomoo's simulated account;
+SG/MY run on the bot's own simulated account with real quotes (Moomoo has no simulator there). Hours, lots and fees per market live in
+`bot/intraday/market.py` and can be overridden in `data/markets.json` (see `data/markets.example.json`). Apply
+`supabase/migrations/20261007000000_markets.sql`. Read the "Markets" section of `docs/strategies-review.md`: fees probably block these strategies on SG/MY.
 Rules (v2): 1% risk with a hard 1% ceiling, 2% daily loss, drawdown breakers at 6% (risk 0.5%) and 10% (stop); see the top of `docs/strategies-review.md`.
 Windows needs the time-zone database: `python -m pip install tzdata` (or `pip install -e .`, which installs it).
 

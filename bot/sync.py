@@ -81,16 +81,20 @@ class SupabaseSync:
                   json={"status": "error", "error": error[:500], "finished_at": now()})
 
     def get_strategy_configs(self) -> list[dict]:
-        r = self._req("GET", "/strategy_configs", params={"user_id": f"eq.{self.user_id}", "select": "strategy,enabled,budget,params"})
+        r = self._req("GET", "/strategy_configs", params={"user_id": f"eq.{self.user_id}", "select": "strategy,market,enabled,budget,params"})
         return r.json() if r else []
 
     def push_trade(self, t: dict) -> None:
         self._req("POST", "/strategy_trades", json={
-            "user_id": self.user_id, "strategy": t["strategy"], "mode": t.get("mode", "paper"), "ticker": t["ticker"],
+            "user_id": self.user_id, "strategy": t["strategy"], "market": t.get("market", "US"), "mode": t.get("mode", "paper"), "ticker": t["ticker"],
             "entered_at": t["entry_ts"], "exited_at": t["exits"][-1]["ts"], "entry": t["entry"], "stop": t["stop"],
             "shares": t["shares"], "costs": t["costs"], "pnl": t["pnl"], "r_multiple": t["r"],
             "exits": t["exits"], "regime": t.get("regime")})
 
-    def push_engine_status(self, state: dict) -> None:
+    def push_engine_status(self, state: dict, market: str = "US") -> None:
         self._req("POST", "/engine_status", headers={"Prefer": "resolution=merge-duplicates"},
-                  json={"user_id": self.user_id, "state": state, "updated_at": now()})
+                  json={"user_id": self.user_id, "market": market, "state": state, "updated_at": now()})
+
+    def get_market_configs(self) -> list[dict]:
+        r = self._req("GET", "/market_configs", params={"user_id": f"eq.{self.user_id}", "select": "market,enabled,symbols,paper_balance"})
+        return r.json() if r else []

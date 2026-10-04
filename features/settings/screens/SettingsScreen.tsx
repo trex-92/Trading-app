@@ -7,6 +7,7 @@ import { Prefs, getBool, setBool } from '@/lib/preferences';
 import { signOut } from '@/lib/providers/auth';
 import { biometricsAvailable } from '@/lib/providers/biometrics';
 import { useAuth } from '@/features/auth/AuthContext';
+import { MarketsCard } from '@/features/strategies/components/MarketsCard';
 
 export function SettingsScreen() {
   const { session } = useAuth();
@@ -25,6 +26,7 @@ export function SettingsScreen() {
         <ThemedText type="small" themeColor="textSecondary">Signed in as</ThemedText>
         <ThemedText>{session?.user.email}</ThemedText>
       </Card>
+      <MarketsCard />
       {canLock && (
         <Card>
           <Row left={<ThemedText>Require Face ID / passcode</ThemedText>}

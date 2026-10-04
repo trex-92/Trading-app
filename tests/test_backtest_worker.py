@@ -24,9 +24,10 @@ class FakeSync:
         self.failed[rid] = err
 
 
-def provider(sym, start, end):
+def provider(sym, start, end, market=None):
+    from bot.intraday.market import US
     days = business_days(start, end)
-    return synthetic_history(days, ["trend", "range"], [sym])[sym] if days else []
+    return synthetic_history(days, ["trend", "range"], [sym], market=market or US)[sym] if days else []
 
 
 def req(**over):
@@ -56,7 +57,7 @@ def test_worker_reports_failures_instead_of_crashing():
     sync = FakeSync([{"id": "bad", "strategy": "A", "params": req(overrides={"A": {"nope": 1}})},
                      {"id": "empty", "strategy": "A", "params": req()},
                      {"id": "inv", "strategy": "A", "params": req(budget=-5)}])
-    BacktestWorker(sync, lambda *a: [] if a[0] == "SPY" and False else provider(*a), "x", log=lambda *a: None).poll_once()
+    BacktestWorker(sync, provider, "x", log=lambda *a: None).poll_once()
     assert "unknown parameter" in sync.failed["bad"] and "budget" in sync.failed["inv"]
     sync2 = FakeSync([{"id": "empty", "strategy": "A", "params": req()}])
     BacktestWorker(sync2, lambda *a: [], "x", log=lambda *a: None).poll_once()

@@ -13,11 +13,12 @@ import math
 from dataclasses import dataclass, field
 from datetime import date, datetime
 
-from .bars import Bar, is_premarket, is_regular, tod
+from .bars import Bar
 from .calendar import Calendar
 from .context import DayContext, TickerState
+from .market import US, Market
 from .params import SharedParams
-from .risk import DayRisk, DrawdownGuard, size_position
+from .risk import DayRisk, DrawdownGuard, cost_per_share, size_position
 from .stats import summarize
 from .strategies import Signal, Strategy
 
@@ -32,6 +33,7 @@ class Position:
     sizing: dict
     remaining: int = 0
     t1_done: bool = False
+    entry_elapsed: int = 0
     t1_bar: datetime | None = None
     exits: list = field(default_factory=list)
 
@@ -50,7 +52,8 @@ class Result:
 
 class Backtester:
     def __init__(self, strategies: list[Strategy], shared: SharedParams, budget: float,
-                 calendar: Calendar | None = None, warmup_days: int = 1):
+                 calendar: Calendar | None = None, warmup_days: int = 1, market: Market = US):
+        self.market = market
         self.strategies, self.shared = strategies, shared.validate()
         self.budget, self.calendar, self.warmup_days = budget, calendar or Calendar(), warmup_days
 
@@ -61,10 +64,10 @@ class Backtester:
         for t, bars in data.items():
             d: dict[date, dict] = {}
             for b in sorted(bars, key=lambda x: x.ts):
-                slot = d.setdefault(b.ts.date(), {"pm": [], "reg": {}})
-                if is_regular(b.ts):
+                slot = d.setdefault(b.ts.astimezone(self.market.tz).date(), {"pm": [], "reg": {}})
+                if self.market.is_regular(b.ts):
                     slot["reg"][b.ts] = b
-                elif is_premarket(b.ts):
+                elif self.market.is_pre(b.ts):
                     slot["pm"].append(b)
             by_day[t] = d
         days = sorted({day for t in universe for day, s in by_day[t].items() if s["reg"]})
@@ -86,7 +89,7 @@ class Backtester:
             ctxs = {}
             for t in universe:
                 if by_day[t].get(day, {}).get("reg"):
-                    c = ctxs[t] = DayContext(t, day, states[t], prior[t])
+                    c = ctxs[t] = DayContext(t, day, states[t], prior[t], self.market)
                     for b in by_day[t][day]["pm"]:
                         c.add_premarket(b)
             timeline = sorted({ts for t in ctxs for ts in by_day[t][day]["reg"]})
@@ -105,9 +108,12 @@ class Backtester:
         return Result(self.trades, summarize(self.trades, self.budget), self.curve, notes, self.skipped)
 
     def _notes(self, days) -> list[str]:
-        notes = ["Untested starting defaults; a backtest is not a forecast. Paper trade 100 trades per strategy before any live money.",
+        sh = self.shared
+        notes = [f"Market: {self.market.name}, {self.market.currency}, lot size {sh.lot_size}.",
+                 "Untested starting defaults; a backtest is not a forecast. Paper trade 100 trades per strategy before any live money.",
                  "Fills: next-bar marketable limit; stop assumed first when a bar touches stop and target; spread filter not applied (no bid/ask in bars).",
-                 f"Costs assumed: ${self.shared.cost_per_share_round_trip:.3f}/share round trip."]
+                 f"Costs assumed (round trip): {sh.cost_per_share_round_trip:.3f} per share + {sh.cost_pct_round_trip:.2f}% of notional. "
+                 "These are placeholders; use your real fee schedule."]
         if not self.calendar.configured:
             notes.append("WARNING: no event calendar configured. FOMC, CPI/NFP and half days were NOT excluded.")
         if len(days) <= self.warmup_days:
@@ -122,6 +128,7 @@ class Backtester:
 
     # ---------------------------------------------------------------------------------------------
     def _step(self, ticker, ctx, bar, new5, tradable):
+        self.cur_elapsed = ctx.elapsed
         if self.pending and self.pending.ticker == ticker:
             self._try_fill(bar, ctx)
         if self.pos and self.pos.sig.ticker == ticker:
@@ -135,7 +142,7 @@ class Backtester:
         sig = sigs[0]
         if self.risk.can_enter(self.shared):
             return
-        if self.not_before and tod(sig.ts) < self.not_before:
+        if self.not_before and sig.elapsed < self.not_before:
             return
         sizing = size_position(self.equity, sig.entry, sig.stop, self.shared, self.guard.risk_pct)
         if sizing["skip"]:
@@ -153,7 +160,7 @@ class Backtester:
         else:
             return  # price ran away: order expires unfilled
         sizing = sig.regime["sizing"]
-        self.pos = Position(sig, bar.ts, px, sizing["shares"], sig.stop, sizing)
+        self.pos = Position(sig, bar.ts, px, sizing["shares"], sig.stop, sizing, entry_elapsed=ctx.elapsed - 1)
         self.risk.trades += 1
         self.lock[sig.ticker] = sig.family
 
@@ -166,7 +173,9 @@ class Backtester:
             self._exit(pos.remaining, pos.stop, ctx.now, "breakeven_stop" if pos.t1_done else "stop")
             return
         if not pos.t1_done and bar.high >= pos.sig.t1:
-            qty = pos.remaining if pos.shares < 2 else int(math.floor(pos.shares * pos.sig.t1_frac))
+            lot = self.shared.lot_size
+            half = int(math.floor(pos.shares * pos.sig.t1_frac / lot)) * lot
+            qty = pos.remaining if half < lot else half  # cannot split a single board lot
             self._exit(qty, max(pos.sig.t1, bar.open), ctx.now, "target1")
             if self.pos is None:
                 return
@@ -176,11 +185,11 @@ class Backtester:
             return
         strat = next(s for s in self.strategies if s.name == pos.sig.strategy)
         reason = strat.discretionary_exit(pos, ctx, new5)
-        mins = (ctx.now - pos.entry_ts).total_seconds() / 60
+        mins = ctx.elapsed - pos.entry_elapsed   # trading minutes (a lunch break does not count)
         if not reason and pos.sig.time_stop_minutes and mins >= pos.sig.time_stop_minutes \
                 and (pos.sig.time_stop_always or not pos.t1_done):
             reason = "time_stop"
-        if not reason and tod(ctx.now) >= pos.sig.flat:
+        if not reason and ctx.elapsed >= pos.sig.flat_min:
             reason = "flat_eod"
         if reason:
             self._exit(pos.remaining, bar.close, ctx.now, reason)
@@ -194,7 +203,7 @@ class Backtester:
             return
         sig = pos.sig
         gross = sum((e["price"] - pos.entry) * e["qty"] for e in pos.exits)
-        costs = self.shared.cost_per_share_round_trip * pos.shares
+        costs = cost_per_share(pos.entry, self.shared) * pos.shares
         net = gross - costs
         r = net / (pos.shares * (sig.entry - sig.stop))
         self.equity += net
@@ -207,6 +216,6 @@ class Backtester:
             "entry_ts": pos.entry_ts.isoformat(), "entry": round(pos.entry, 4), "planned_entry": sig.entry,
             "stop": sig.stop, "t1": round(sig.t1, 4), "t2": sig.t2 and round(sig.t2, 4), "shares": pos.shares,
             "exits": pos.exits, "costs": round(costs, 2), "pnl": round(net, 2), "r": round(r, 3),
-            "minutes_held": round((ts - pos.entry_ts).total_seconds() / 60, 1), "regime": sig.regime})
+            "minutes_held": self.cur_elapsed - pos.entry_elapsed, "market": self.market.code, "regime": sig.regime})
         self.curve.append({"ts": ts.isoformat(), "equity": round(self.equity, 2)})
         self.pos = None

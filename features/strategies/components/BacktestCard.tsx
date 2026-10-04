@@ -5,16 +5,18 @@ import { Card, ThemedText } from '@/components/themed';
 import { Row } from '@/features/bot/components';
 import { fetchBacktestResult } from '@/lib/providers/strategies';
 import { useTheme } from '@/hooks/use-theme';
-import { defaultRange, equityBars, fmt, fmtR, parseTickers, validateRange } from '../calculations';
+import { MARKETS, defaultRange, equityBars, fmtR, money, parseTickers, validateRange } from '../calculations';
 import { useStrategies } from '../StrategiesContext';
-import type { BacktestResult, BacktestRun, StrategyCode } from '../types';
+import type { BacktestResult, BacktestRun, MarketCode, StrategyCode } from '../types';
 
-export function BacktestCard({ code }: { code: StrategyCode }) {
+export function BacktestCard({ code, market }: { code: StrategyCode; market: MarketCode }) {
   const { runs, configs, runBacktest, removeRun } = useStrategies();
   const theme = useTheme();
   const range = useMemo(() => defaultRange(new Date()), []);
-  const mine = configs.find((c) => c.strategy === code);
-  const [tickers, setTickers] = useState('SPY, QQQ');
+  const mine = configs.find((c) => c.strategy === code && (c.market ?? 'US') === market);
+  const cur = MARKETS[market].currency;
+  const [tickers, setTickers] = useState(MARKETS[market].sample);
+  useEffect(() => { setTickers(MARKETS[market].sample); setSelected(null); }, [market]);
   const [start, setStart] = useState(range.start);
   const [end, setEnd] = useState(range.end);
   const [budget, setBudget] = useState('');
@@ -22,9 +24,9 @@ export function BacktestCard({ code }: { code: StrategyCode }) {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
 
-  const mineRuns = runs.filter((r) => r.strategy === code);
+  const mineRuns = runs.filter((r) => r.strategy === code && (r.params.market ?? 'US') === market);
   const shown = mineRuns.find((r) => r.id === selected) ?? mineRuns[0];
-  const t = parseTickers(tickers);
+  const t = parseTickers(tickers, market);
   const rangeError = validateRange(start, end, new Date());
   const budgetNum = Number((budget || (mine ? String(mine.budget) : '')).replace(/,/g, ''));
   const budgetError = !(budgetNum > 0) ? 'Set a budget above, or enter one here' : null;
@@ -35,7 +37,7 @@ export function BacktestCard({ code }: { code: StrategyCode }) {
     setBusy(true);
     setError(null);
     try {
-      await runBacktest(code, { tickers: t.tickers, start, end, budget: budgetNum });
+      await runBacktest(code, { market, tickers: t.tickers, start, end, budget: budgetNum });
       setSelected(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -47,16 +49,16 @@ export function BacktestCard({ code }: { code: StrategyCode }) {
   const input = [styles.input, { backgroundColor: theme.background, color: theme.text }];
   return (
     <Card>
-      <ThemedText type="bold">Backtest</ThemedText>
+      <ThemedText type="bold">Backtest · {market}</ThemedText>
       <ThemedText type="small" themeColor="textSecondary">
         Replays 1-minute history through this strategy and the shared risk rules. Untested default thresholds; not a forecast.
       </ThemedText>
-      <Field label="Symbols (1-3)"><TextInput style={input} value={tickers} onChangeText={setTickers} autoCapitalize="characters" /></Field>
+      <Field label={`Symbols (1-3), e.g. ${MARKETS[market].sample}`}><TextInput style={input} value={tickers} onChangeText={setTickers} autoCapitalize="characters" /></Field>
       <View style={styles.pair}>
         <View style={{ flex: 1 }}><Field label="From"><TextInput style={input} value={start} onChangeText={setStart} autoCapitalize="none" /></Field></View>
         <View style={{ flex: 1 }}><Field label="To"><TextInput style={input} value={end} onChangeText={setEnd} autoCapitalize="none" /></Field></View>
       </View>
-      <Field label={`Starting capital (default: this strategy's budget${mine ? `, ${fmt(Number(mine.budget))}` : ''})`}>
+      <Field label={`Starting capital in ${cur} (default: this strategy's budget${mine ? `, ${money(Number(mine.budget), cur)}` : ''})`}>
         <TextInput style={input} value={budget} onChangeText={setBudget} keyboardType="decimal-pad" placeholder={mine ? String(mine.budget) : '100000'} placeholderTextColor={theme.textSecondary} />
       </Field>
       {problem && <ThemedText type="small" themeColor="warning">{problem}</ThemedText>}
@@ -124,7 +126,7 @@ function RunView({ run, onDelete }: { run: BacktestRun; onDelete: () => void }) 
   return (
     <View style={{ gap: 8 }}>
       <ThemedText type="small" themeColor="textSecondary">
-        {req.tickers.join(', ')} · {req.start} to {req.end} · start {fmt(req.budget)}
+        {req.market ?? 'US'} · {req.tickers.join(', ')} · {req.start} to {req.end} · start {money(req.budget, MARKETS[req.market ?? 'US'].currency)}
       </ThemedText>
       {s.n_trades === 0 ? (
         <ThemedText>No trades in this period. Either the setups never appeared or the data was thin; check the data coverage below.</ThemedText>
@@ -134,13 +136,13 @@ function RunView({ run, onDelete }: { run: BacktestRun; onDelete: () => void }) 
           <Stat label="Win rate" value={`${s.win_rate_pct}%`} />
           <Stat label="Average R" value={fmtR(s.avg_r)} sub={ci ? `95% range ${fmtR(ci[0])} to ${fmtR(ci[1])}` : undefined} good={(s.avg_r ?? 0) > 0} />
           <Stat label="Profit factor" value={s.profit_factor == null ? '-' : String(s.profit_factor)} />
-          <Stat label="Net P&L" value={fmt(s.total_pnl ?? 0)} sub={`${s.return_pct}% · costs ${fmt(s.total_costs ?? 0)}`} good={(s.total_pnl ?? 0) > 0} />
+          <Stat label="Net P&L" value={money(s.total_pnl ?? 0, MARKETS[req.market ?? 'US'].currency)} sub={`${s.return_pct}% · costs ${money(s.total_costs ?? 0, MARKETS[req.market ?? 'US'].currency)}`} good={(s.total_pnl ?? 0) > 0} />
           <Stat label="Max drawdown" value={`${s.max_drawdown_pct}%`} />
           <Stat label="Avg hold" value={`${s.avg_minutes_held} min`} />
         </>
       )}
       {loading && <ActivityIndicator />}
-      {result && <ResultDetails result={result} start={req.budget} />}
+      {result && <ResultDetails result={result} start={req.budget} noTrades={s.n_trades === 0} />}
       {run.summary!.notes.map((n, i) => (
         <ThemedText key={i} type="small" themeColor={n.startsWith('WARNING') ? 'warning' : 'textSecondary'}>• {n}</ThemedText>
       ))}
@@ -156,7 +158,7 @@ function Stat({ label, value, sub, good }: { label: string; value: string; sub?:
   );
 }
 
-function ResultDetails({ result, start }: { result: BacktestResult; start: number }) {
+function ResultDetails({ result, start, noTrades }: { result: BacktestResult; start: number; noTrades: boolean }) {
   const theme = useTheme();
   const bars = equityBars(result.equity_curve, start);
   return (
@@ -170,6 +172,12 @@ function ResultDetails({ result, start }: { result: BacktestResult; start: numbe
             ))}
           </View>
         </View>
+      )}
+      {Object.keys(result.skipped ?? {}).length > 0 && (
+        <ThemedText type="small" themeColor="warning">
+          Signals skipped: {Object.entries(result.skipped).map(([k, v]) => `${k} ${v}`).join(', ')}.
+          {noTrades && result.skipped.cost ? ' The cost rule (fees above 10% of the risk per trade) removed every signal: with these fee assumptions the strategy cannot trade here. Check the fee settings.' : ''}
+        </ThemedText>
       )}
       <ThemedText type="bold">Data used</ThemedText>
       {Object.entries(result.data).map(([sym, d]) => (

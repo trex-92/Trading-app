@@ -5,6 +5,11 @@ from dataclasses import dataclass
 from .params import SharedParams
 
 
+def cost_per_share(entry: float, p: SharedParams) -> float:
+    """All-in round-trip cost per share: fixed per-share part plus a percentage of the price."""
+    return p.cost_per_share_round_trip + entry * p.cost_pct_round_trip / 100
+
+
 def size_position(equity: float, entry: float, stop: float, p: SharedParams, risk_pct: float | None = None) -> dict:
     """shares = floor(min(equity*risk%/risk_per_share, equity*max_notional%/entry)); skip rules per the spec."""
     rps = entry - stop
@@ -15,15 +20,17 @@ def size_position(equity: float, entry: float, stop: float, p: SharedParams, ris
     out["risk_pct"] = risk_pct
     by_risk = equity * risk_pct / 100 / rps
     by_notional = equity * p.max_notional_pct / 100 / entry
-    shares = math.floor(min(by_risk, by_notional))
+    lot = p.lot_size
+    shares = math.floor(min(by_risk, by_notional) / lot) * lot   # whole board lots only
     out.update(shares_by_risk=round(by_risk, 2), shares_by_notional=round(by_notional, 2), shares=shares,
                binding="notional" if by_notional < by_risk else "risk")
     if shares < 1:
         return {**out, "skip": "shares < 1"}
-    cost = shares * p.cost_per_share_round_trip
+    cost_ps = cost_per_share(entry, p)
+    cost = shares * cost_ps
     out["est_round_trip_cost"] = round(cost, 2)
-    if cost > p.max_cost_pct_of_1R / 100 * shares * rps:
-        return {**out, "skip": f"cost {cost:.2f} > {p.max_cost_pct_of_1R}% of 1R"}
+    if cost_ps > p.max_cost_pct_of_1R / 100 * rps:
+        return {**out, "skip": f"cost {cost_ps:.4f}/share = {cost_ps / rps * 100:.0f}% of 1R (max {p.max_cost_pct_of_1R}%)"}
     return {**out, "skip": None}
 
 

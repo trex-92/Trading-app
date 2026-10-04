@@ -29,16 +29,16 @@ def mkday(day, overrides=None):
 class Fixed(Strategy):
     """Emits a long signal at the close of given 1m bar indices: entry = close, stop = entry-1, T1 = entry+1.5."""
 
-    def __init__(self, at, name="X", family="trend", t2=None, time_stop=None, always=False, flat=time(15, 55)):
+    def __init__(self, at, name="X", family="trend", t2=None, time_stop=None, always=False, flat_min=385):
         self.at, self.name, self.family, self.t2 = set(at), name, family, t2
-        self.time_stop, self.always, self.flat = time_stop, always, flat
+        self.time_stop, self.always, self.flat_min = time_stop, always, flat_min
 
     def on_bar(self, ctx, new5):
         if len(ctx.bars1) - 1 in self.at:
             e = ctx.bars1[-1].close
             return Signal(self.name, ctx.ticker, ctx.now, e, e - 1.0, e + 1.5, self.t2 and e + self.t2, {},
-                          time_stop_minutes=self.time_stop, time_stop_always=self.always, flat=self.flat,
-                          family=self.family)
+                          time_stop_minutes=self.time_stop, time_stop_always=self.always, flat_min=self.flat_min,
+                          family=self.family, elapsed=ctx.elapsed)
 
 
 def run(strats, over=None, shared=None, cal=None, budget=100000):
@@ -79,8 +79,8 @@ def test_params_validation():
         SharedParams(allow_short=True).validate()
     with pytest.raises(ValueError, match="unknown parameter"):
         apply_overrides(ScalpParams(), {"nope": 1})
-    p = apply_overrides(ScalpParams(), {"window_start": "10:00", "t1_r": "2", "pullback_max_age_bars": 5})
-    assert p.window_start == time(10, 0) and p.t1_r == 2.0 and p.pullback_max_age_bars == 5
+    p = apply_overrides(ScalpParams(), {"window_start_min": "30", "t1_r": "2", "pullback_max_age_bars": 5})
+    assert p.window_start_min == 30 and p.t1_r == 2.0 and p.pullback_max_age_bars == 5
 
 
 def test_day_risk_limits():
@@ -113,10 +113,9 @@ def test_5m_bars_close_only_when_complete_and_levels_form():
 
 def test_vwap_cross_counting_and_rising():
     ctx = DayContext("SPY", D2, TickerState())
-    t0 = datetime(2026, 9, 2, 9, 30, tzinfo=NY)
-    ctx.side = [(t0 + timedelta(minutes=5 * i), s) for i, s in enumerate([1, 1, -1, 1, -1])]
+    ctx.side = [(5 * i, s) for i, s in enumerate([1, 1, -1, 1, -1])]   # (trading minute the 5m bar started, side)
     assert ctx.vwap_crosses() == 3
-    assert ctx.vwap_crosses(time(9, 45)) == 1  # only the last two (09:45 and 09:50 bars) -> one flip
+    assert ctx.vwap_crosses(15) == 1  # only the last two (09:45 and 09:50 bars) -> one flip
     ctx.vwap5 = [1, 2, 3, 4]
     assert ctx.vwap_rising()
     ctx.vwap5 = [4, 3, 2, 1]

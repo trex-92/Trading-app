@@ -1,0 +1,15 @@
+{
+  "_comment": "Copy to data/markets.json and correct anything that differs from your broker. Hours, lot sizes and fees below are NOT verified. Run `python -m bot.smoke_moomoo` to compare hours with the real data.",
+  "SG": {
+    "sessions": [["09:00", "12:00"], ["13:00", "17:00"]],
+    "lot_size": 100,
+    "cost_pct_round_trip": 0.15,
+    "stale_seconds": 60
+  },
+  "MY": {
+    "sessions": [["09:00", "12:30"], ["14:30", "17:00"]],
+    "lot_size": 100,
+    "cost_pct_round_trip": 0.30,
+    "stale_seconds": 60
+  }
+}

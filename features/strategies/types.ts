@@ -1,8 +1,19 @@
 export type StrategyCode = 'A' | 'B' | 'C';
+export type MarketCode = 'US' | 'SG' | 'MY';
+
+export type MarketConfig = {
+  user_id: string;
+  market: MarketCode;
+  enabled: boolean;
+  symbols: string[];
+  paper_balance: number;
+  updated_at: string;
+};
 
 export type StrategyConfig = {
   user_id: string;
   strategy: StrategyCode;
+  market: MarketCode;
   enabled: boolean;
   budget: number;
   params: Record<string, unknown>;
@@ -27,7 +38,7 @@ export type BacktestStats = {
   note?: string;
 };
 
-export type BacktestRequest = { tickers: string[]; start: string; end: string; budget: number };
+export type BacktestRequest = { market?: MarketCode; tickers: string[]; start: string; end: string; budget: number };
 
 export type BacktestSummary = {
   stats: BacktestStats;
@@ -72,6 +83,7 @@ export type BacktestResult = {
 export type JournalTrade = {
   id: string;
   strategy: StrategyCode;
+  market?: MarketCode;
   mode: 'paper' | 'live';
   ticker: string;
   entered_at: string;
@@ -84,6 +96,9 @@ export type JournalTrade = {
 
 export type EngineState = {
   mode: 'paper';
+  market?: MarketCode;
+  currency?: string;
+  simulated_by?: string;
   session: 'open' | 'closed';
   feed_ok: boolean;
   halt_reason: string | null;
@@ -96,4 +111,4 @@ export type EngineState = {
   position: { strategy: StrategyCode; ticker: string; shares: number; entry: number; stop: number; t1: number } | null;
 };
 
-export type EngineRow = { state: EngineState; updated_at: string };
+export type EngineRow = { market?: MarketCode; state: EngineState; updated_at: string };

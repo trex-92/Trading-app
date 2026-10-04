@@ -1,10 +1,10 @@
 import {
-  allocation, defaultRange, engineSummary, downsample, equityBars, isIsoDate, journalProgress, parseTickers, validateBudget, validateRange,
+  accountLimit, allocation, parseSymbols, defaultRange, engineSummary, downsample, equityBars, isIsoDate, journalProgress, parseTickers, validateBudget, validateRange,
 } from './calculations';
 import type { JournalTrade, StrategyConfig } from './types';
 
-const cfg = (strategy: 'A' | 'B' | 'C', budget: number): StrategyConfig => ({
-  user_id: 'u', strategy, enabled: false, budget, params: {}, updated_at: '',
+const cfg = (strategy: 'A' | 'B' | 'C', budget: number, market: 'US' | 'SG' | 'MY' = 'US'): StrategyConfig => ({
+  user_id: 'u', strategy, market, enabled: false, budget, params: {}, updated_at: '',
 });
 
 describe('budget allocation', () => {
@@ -55,7 +55,7 @@ describe('inputs', () => {
     expect(parseTickers('spy, qqq').tickers).toEqual(['SPY', 'QQQ']);
     expect(parseTickers('').error).toMatch(/1 to 3/);
     expect(parseTickers('a b c d').error).toMatch(/1 to 3/);
-    expect(parseTickers('SPY; DROP').error).toMatch(/letters/);
+    expect(parseTickers('SPY; DROP').error).toMatch(/Not valid US symbols/);
   });
 });
 
@@ -108,5 +108,51 @@ describe('engineSummary', () => {
     expect(engineSummary(row({ blocked_today: 'fomc_day' }), now, 'A').text).toMatch(/fomc day/);
     expect(engineSummary(row(), now, 'B').level).toBe('warn'); // B is not enabled
     expect(engineSummary(row(), now, 'A')).toEqual({ text: 'Engine running on the simulated account.', level: 'ok' });
+  });
+});
+
+describe('markets', () => {
+  it('keeps each market budget in its own pool and currency', () => {
+    const configs = [cfg('A', 400_000, 'US'), cfg('A', 30_000, 'MY'), cfg('B', 50_000, 'MY')];
+    expect(allocation(configs, 1_000_000, 'B', 'US').allocated).toBe(400_000);
+    expect(allocation(configs, 100_000, 'B', 'MY')).toEqual({ allocated: 30_000, remaining: 70_000 });
+    expect(allocation(configs, 100_000, undefined, 'SG').allocated).toBe(0);
+  });
+
+  it('limits SG/MY budgets to the paper balance and US to the bot-reported equity', () => {
+    const markets = [{ user_id: 'u', market: 'MY' as const, enabled: true, symbols: [], paper_balance: 80_000, updated_at: '' }];
+    expect(accountLimit('US', 1_000_000, markets)).toBe(1_000_000);
+    expect(accountLimit('US', null, markets)).toBeNull();
+    expect(accountLimit('MY', 1_000_000, markets)).toBe(80_000);   // the US equity is irrelevant to Malaysia
+    expect(accountLimit('SG', 1_000_000, markets)).toBeNull();      // no paper balance set yet
+  });
+
+  it('validates a local-market budget against the right pool and explains a missing balance', () => {
+    const configs = [cfg('A', 30_000, 'MY')];
+    expect(validateBudget('50000', 'B', configs, 80_000, 'MY').error).toBeNull();
+    expect(validateBudget('50001', 'B', configs, 80_000, 'MY').error).toMatch(/MYR/);
+    expect(validateBudget('100', 'B', configs, null, 'SG').error).toMatch(/SG paper balance/);
+    expect(validateBudget('100', 'B', [], null, 'US').error).toMatch(/Start the bot/);
+  });
+
+  it('checks symbols against the market', () => {
+    expect(parseSymbols('1155, 5225', 'MY')).toEqual({ symbols: ['1155', '5225'], error: null });
+    expect(parseSymbols('d05 es3', 'SG').symbols).toEqual(['D05', 'ES3']);
+    expect(parseSymbols('1155', 'US').error).toMatch(/Not valid US/);
+    expect(parseSymbols('', 'MY').error).toMatch(/1 to 3/);
+    expect(parseTickers('SPY', 'US').error).toBeNull();
+  });
+
+  it('describes a switched-off market and a local simulated engine', () => {
+    const now = new Date('2026-10-05T14:00:00Z');
+    const state = {
+      mode: 'paper' as const, market: 'MY' as const, currency: 'MYR', session: 'open' as const, feed_ok: true, halt_reason: null,
+      stops: 'held by the bot', calendar_configured: true, blocked_today: null, enabled: ['A'],
+      risk: { per_trade_pct: 1, breaker_level: 0, live_disabled: false, daily_max_loss_pct: 2 }, day: null, position: null,
+    };
+    const row = { market: 'MY' as const, state, updated_at: new Date(now.getTime() - 5000).toISOString() };
+    expect(engineSummary(null, now, 'A', false).text).toMatch(/switched off/);
+    expect(engineSummary(row, now, 'A', true).text).toMatch(/simulated MYR account/);
+    expect(engineSummary(row, now, 'A', false).text).toMatch(/no new entries/);
   });
 });

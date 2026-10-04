@@ -64,6 +64,23 @@ def main() -> int:
         return f"last={q['last']} quote_time={q['ts']} age={age}s (the engine treats >10s during the session as a stale feed)"
     step("SPY quote freshness", quote_age)
     step("1-minute SPY history (check: first regular bar should read 09:30, last 15:59)", intraday)
+    def other_markets():
+        from datetime import date, timedelta
+        from .intraday.market import SG, MY, configured_runs, observed_sessions
+        lines = []
+        for market, sym in ((SG, "ES3"), (MY, "1155")):
+            try:
+                bars = broker.intraday_bars(sym, date.today() - timedelta(days=8), date.today(), market=market)
+                q = broker.snapshot([sym], market=market).get(sym)
+            except Exception as e:  # noqa: BLE001
+                lines.append(f"{market.code} {sym}: FAILED ({e})")
+                continue
+            seen, want = observed_sessions(bars, market), configured_runs(market)
+            verdict = "matches the configured hours" if seen == want else f"DIFFERS from configured {want}: fix data/markets.json"
+            lines.append(f"{market.code} {sym}: {len(bars)} bars over {len({b.ts.date() for b in bars})} days; hours seen {seen} {verdict}; "
+                         f"quote={q and q['last']} at {q and q['ts']}")
+        return "\n       ".join(lines)
+    step("SGX / Bursa data (hours and quotes)", other_markets)
     if "--order" in sys.argv:
         o = step("place 1 share AAPL BUY via the adapter (marketable limit, simulated)",
                  lambda: broker.place_order(Order("AAPL", "BUY", 1)))

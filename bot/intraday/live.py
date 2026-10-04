@@ -19,16 +19,17 @@ from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
 from ..models import Order
-from .bars import NY, Bar, is_premarket, is_regular, tod
+from .bars import NY, Bar
 from .calendar import Calendar
 from .context import DayContext, TickerState
+from .market import US, Market
 from .params import SharedParams
-from .risk import DayRisk, DrawdownGuard, size_position
-from .runner import build
+from .risk import DayRisk, DrawdownGuard, cost_per_share, size_position
+from .runner import base_shared, build
 
-OPEN, CLOSE = time(9, 30), time(16, 0)
 BAR_LAG = timedelta(seconds=2)       # wait this long after a minute ends before trusting its bar
 FRESH = timedelta(seconds=90)        # only bars this recent may trigger an entry (catch-up bars never do)
+GRACE = timedelta(seconds=10)         # keep processing this long after a session segment ends so its last bar is seen
 SELL_BUFFERS = (0.001, 0.002, 0.004)  # marketable-limit sell: 0.1%, then 0.2%, then 0.4% below the last price
 
 
@@ -36,15 +37,21 @@ class LiveRunner:
     def __init__(self, broker, sync, *, universe, configs, calendar_path="data/calendar.json",
                  state_path="data/live_state.json", journal_path="data/journal.jsonl", clock=None,
                  sleep=_time.sleep, log=print, shared: SharedParams | None = None, halted=lambda: False,
-                 poll_seconds=5.0, fill_timeout=20.0, stale_seconds=10.0, strategy_factory=None, real=False):
+                 poll_seconds=5.0, fill_timeout=20.0, stale_seconds=None, strategy_factory=None, real=False,
+                 market: Market = US):
         if real:
             raise RuntimeError("The strategy engine is paper-only in this phase; REAL accounts are refused.")
-        self.broker, self.sync, self.universe, self.configs = broker, sync, list(universe), configs
+        self.market = market
+        self.broker, self.sync, self.configs = broker, sync, configs
+        self._universe_src = universe
+        self.universe = list(universe() if callable(universe) else universe)
+        self.enabled = True   # the app's per-market switch; False = manage open positions but take no new entries
         self.calendar_path, self.state_path, self.journal_path = calendar_path, Path(state_path), Path(journal_path)
-        self.clock = clock or (lambda: datetime.now(NY))
+        self.clock = clock or (lambda: datetime.now(market.tz))
         self.sleep, self.log, self.halted = sleep, log, halted
-        self.shared = (shared or SharedParams()).validate()   # raises (and the bot refuses to start) above the risk ceiling
-        self.poll, self.fill_timeout, self.stale_seconds = poll_seconds, fill_timeout, stale_seconds
+        self.shared = (shared or base_shared(market)).validate()   # raises (and the bot refuses to start) above the risk ceiling
+        self.poll, self.fill_timeout = poll_seconds, fill_timeout
+        self.stale_seconds = stale_seconds if stale_seconds is not None else market.stale_seconds
         self.strategy_factory = strategy_factory or (lambda codes, overrides: build(codes, overrides)[0])
         self.day: date | None = None
         self.ctx: dict[str, DayContext] = {}
@@ -95,8 +102,9 @@ class LiveRunner:
             stop.wait(self.poll)
 
     def cycle(self) -> None:
-        now = self.clock()
-        in_session = now.weekday() < 5 and OPEN <= tod(now) < CLOSE
+        now = self.clock().astimezone(self.market.tz)
+        in_session = now.weekday() < 5 and (self.market.minute_of_session(now) is not None
+                                            or self.market.minute_of_session(now - GRACE) is not None)
         if not in_session:
             self._publish(now, "closed")
             return
@@ -116,7 +124,9 @@ class LiveRunner:
     # ---- day setup & reconcile -----------------------------------------------------------------------
     def _new_day(self, now: datetime) -> None:
         day = now.date()
-        cal = Calendar.load(self.calendar_path)
+        cal = Calendar.load(self.calendar_path, self.market.code)
+        src = self._universe_src() if callable(self._universe_src) else self._universe_src
+        self.universe = list(dict.fromkeys(list(src) + ([self.pos["ticker"]] if self.pos else [])))
         self.blocked = cal.blocked(day)
         self.not_before = cal.no_entries_before(day)
         self.calendar_ok = cal.configured
@@ -139,14 +149,14 @@ class LiveRunner:
         bars = self.broker.intraday_bars(ticker, day - timedelta(days=8), day)
         by_day: dict[date, list[Bar]] = {}
         for b in sorted(bars, key=lambda x: x.ts):
-            by_day.setdefault(b.ts.date(), []).append(b)
+            by_day.setdefault(b.ts.astimezone(self.market.tz).date(), []).append(b)
         if ticker not in self.tstate:  # fresh process: build indicator state from earlier days
             self.tstate[ticker] = TickerState()
             prior = None
             for d in sorted(x for x in by_day if x < day):
-                c = DayContext(ticker, d, self.tstate[ticker], prior)
+                c = DayContext(ticker, d, self.tstate[ticker], prior, self.market)
                 for b in by_day[d]:
-                    if is_regular(b.ts):
+                    if self.market.is_regular(b.ts):
                         c.add_1m(b)
                 if c.bars1:
                     prior = {"high": c.hod, "low": c.lod, "close": c.bars1[-1].close}
@@ -154,7 +164,7 @@ class LiveRunner:
         elif ticker in self.ctx:
             old = self.ctx[ticker]
             self.prior[ticker] = {"high": old.hod, "low": old.lod, "close": old.bars1[-1].close} if old.bars1 else self.prior.get(ticker)
-        self.ctx[ticker] = DayContext(ticker, day, self.tstate[ticker], self.prior.get(ticker))
+        self.ctx[ticker] = DayContext(ticker, day, self.tstate[ticker], self.prior.get(ticker), self.market)
 
     def _reconcile(self) -> None:
         """Compare broker positions/orders with the saved state before anything is allowed to trade."""
@@ -241,11 +251,11 @@ class LiveRunner:
             except Exception as e:  # noqa: BLE001
                 self.log(f"[live] bar fetch failed for {t}: {e}")
                 continue
-            fresh_bars = [b for b in sorted(bars, key=lambda x: x.ts) if b.ts.date() == now.date()]
+            fresh_bars = [b for b in sorted(bars, key=lambda x: x.ts) if b.ts.astimezone(self.market.tz).date() == now.date()]
             for b in fresh_bars:
-                if is_premarket(b.ts):
+                if self.market.is_pre(b.ts):
                     ctx.add_premarket(b)
-            ready = [b for b in fresh_bars if is_regular(b.ts) and b.ts > self.last_bar.get(t, datetime.min.replace(tzinfo=NY))
+            ready = [b for b in fresh_bars if self.market.is_regular(b.ts) and b.ts > self.last_bar.get(t, datetime.min.replace(tzinfo=NY))
                      and b.ts + timedelta(minutes=1) + BAR_LAG <= now]
             for i, b in enumerate(ready):
                 new5 = ctx.add_1m(b)
@@ -270,10 +280,10 @@ class LiveRunner:
             r = strat.discretionary_exit(pos, ctx, new5)
             if r:
                 return r
-        mins = (ctx.now - datetime.fromisoformat(pos["entry_ts"])).total_seconds() / 60
+        mins = ctx.elapsed - pos["entry_elapsed"]   # trading minutes (a lunch break does not count)
         if pos["time_stop_minutes"] and mins >= pos["time_stop_minutes"] and (pos["time_stop_always"] or not pos["t1_done"]):
             return "time_stop"
-        if tod(ctx.now) >= time.fromisoformat(pos["flat"]):
+        if ctx.elapsed >= pos["flat_min"]:
             return "flat_eod"
         # safety net for a spike the 5-second polling missed; only bars that began after the stop took effect count
         if bar.ts >= datetime.fromisoformat(pos["stop_since"]) and bar.low <= pos["stop"]:
@@ -308,11 +318,13 @@ class LiveRunner:
                     "entry": avg, "planned_entry": sig.entry, "stop_since": now.replace(second=0, microsecond=0).isoformat(), "shares": int(filled), "remaining": int(filled),
                     "stop": sig.stop, "stop0": sig.stop, "t1": sig.t1, "t2": sig.t2, "t1_frac": sig.t1_frac, "t1_done": False,
                     "time_stop_minutes": sig.time_stop_minutes, "time_stop_always": sig.time_stop_always,
-                    "flat": sig.flat.strftime("%H:%M"), "regime": {**sig.regime, "sizing": sizing}, "exits": []}
+                    "flat_min": sig.flat_min, "entry_elapsed": sig.elapsed, "regime": {**sig.regime, "sizing": sizing}, "exits": []}
         self._save_state()
         self.log(f"[live] ENTERED {sig.strategy} {sig.ticker} {int(filled)} sh @ {avg:.2f} stop {sig.stop:.2f} T1 {sig.t1:.2f}")
 
     def _entry_block(self, now, sig) -> str | None:
+        if not self.enabled:
+            return f"{self.market.code} market switched off in the app"
         if self.halt_reason:
             return self.halt_reason
         if self.halted():
@@ -321,7 +333,7 @@ class LiveRunner:
             return "feed stale"
         if self.blocked:
             return f"calendar block ({self.blocked})"
-        if self.not_before and tod(sig.ts) < self.not_before:
+        if self.not_before and sig.elapsed < self.not_before:
             return f"no entries before {self.not_before} today"
         if self.risk.can_enter(self.shared):
             return self.risk.can_enter(self.shared)
@@ -358,7 +370,9 @@ class LiveRunner:
         elif last <= pos["stop"]:
             self._exit(pos["remaining"], "breakeven_stop" if pos["t1_done"] else "stop", last)
         elif not pos["t1_done"] and last >= pos["t1"]:
-            qty = pos["remaining"] if pos["shares"] < 2 else int(math.floor(pos["shares"] * pos["t1_frac"]))
+            lot = self.shared.lot_size
+            half = int(math.floor(pos["shares"] * pos["t1_frac"] / lot)) * lot
+            qty = pos["remaining"] if half < lot else half  # cannot split a single board lot
             self._exit(qty, "target1", last)
             if self.pos:
                 self.pos["t1_done"], self.pos["stop"] = True, self.pos["entry"]
@@ -400,9 +414,10 @@ class LiveRunner:
     def _finish_trade(self) -> None:
         pos = self.pos
         gross = sum((e["price"] - pos["entry"]) * e["qty"] for e in pos["exits"])
-        costs = self.shared.cost_per_share_round_trip * pos["shares"]  # ASSUMED; the simulator reports no fees
+        costs = cost_per_share(pos["entry"], self.shared) * pos["shares"]  # ASSUMED; the simulator reports no fees
         net = gross - costs
         trade = {"date": pos["entry_day"], "ticker": pos["ticker"], "strategy": pos["strategy"], "mode": "paper",
+                 "market": self.market.code,
                  "entry_ts": pos["entry_ts"], "entry": round(pos["entry"], 4), "stop": pos["stop0"], "shares": pos["shares"],
                  "exits": pos["exits"], "costs": round(costs, 2), "pnl": round(net, 2),
                  "r": round(net / (pos["shares"] * (pos["planned_entry"] - pos["stop0"])), 3), "regime": pos["regime"]}
@@ -428,7 +443,8 @@ class LiveRunner:
     def status(self, session: str) -> dict:
         p = self.pos
         return {
-            "mode": "paper", "session": session, "feed_ok": self.feed_ok, "halt_reason": self.halt_reason,
+            "mode": "paper", "market": self.market.code, "currency": self.market.currency, "session": session,
+            "simulated_by": "moomoo simulated account" if self.market.sim_account else "the bot (real quotes, simulated fills)", "feed_ok": self.feed_ok, "halt_reason": self.halt_reason,
             "stops": "held by the bot (not at the broker)",
             "risk": {"per_trade_pct": self.guard.risk_pct, "breaker_level": self.guard.level,
                      "live_disabled": self.guard.live_disabled, "daily_max_loss_pct": self.shared.daily_max_loss_pct}, "calendar_configured": getattr(self, "calendar_ok", False),
@@ -445,6 +461,6 @@ class LiveRunner:
             return
         self._pub_at = now
         try:
-            self.sync.push_engine_status(self.status(session))
+            self.sync.push_engine_status(self.status(session), self.market.code)
         except Exception as e:  # noqa: BLE001
             self.log(f"[live] status publish failed: {e}")

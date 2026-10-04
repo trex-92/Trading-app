@@ -1,19 +1,22 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import {
-  deleteBacktest, fetchBacktests, fetchConfigs, fetchEngine, fetchJournal, queueBacktest, saveConfig, subscribeToStrategies,
+  deleteBacktest, fetchBacktests, fetchConfigs, fetchEngines, fetchJournal, fetchMarkets, queueBacktest, saveConfig, saveMarket,
+  subscribeToStrategies,
 } from '@/lib/providers/strategies';
-import type { BacktestRun, EngineRow, JournalTrade, StrategyCode, StrategyConfig } from './types';
+import type { BacktestRun, EngineRow, JournalTrade, MarketCode, MarketConfig, StrategyCode, StrategyConfig } from './types';
 
 type State = {
   configs: StrategyConfig[];
   runs: BacktestRun[];
   journal: JournalTrade[];
-  engine: EngineRow | null;
+  markets: MarketConfig[];
+  engines: Partial<Record<MarketCode, EngineRow>>;
   error: string | null;
   refresh: () => Promise<void>;
-  saveBudget: (s: StrategyCode, budget: number) => Promise<void>;
-  setEnabled: (s: StrategyCode, enabled: boolean) => Promise<void>;
+  saveBudget: (s: StrategyCode, market: MarketCode, budget: number) => Promise<void>;
+  setEnabled: (s: StrategyCode, market: MarketCode, enabled: boolean) => Promise<void>;
+  saveMarketConfig: (market: MarketCode, fields: Partial<Pick<MarketConfig, 'enabled' | 'symbols' | 'paper_balance'>>) => Promise<void>;
   runBacktest: (s: StrategyCode, params: BacktestRun['params']) => Promise<void>;
   removeRun: (id: string) => Promise<void>;
 };
@@ -25,7 +28,8 @@ export function StrategiesProvider({ children }: { children: ReactNode }) {
   const [configs, setConfigs] = useState<StrategyConfig[]>([]);
   const [runs, setRuns] = useState<BacktestRun[]>([]);
   const [journal, setJournal] = useState<JournalTrade[]>([]);
-  const [engine, setEngine] = useState<EngineRow | null>(null);
+  const [markets, setMarkets] = useState<MarketConfig[]>([]);
+  const [engines, setEngines] = useState<Partial<Record<MarketCode, EngineRow>>>({});
   const [error, setError] = useState<string | null>(null);
   const inflight = useRef(false);
 
@@ -33,11 +37,12 @@ export function StrategiesProvider({ children }: { children: ReactNode }) {
     if (inflight.current) return;
     inflight.current = true;
     try {
-      const [c, r, j, e] = await Promise.all([fetchConfigs(), fetchBacktests(), fetchJournal(), fetchEngine()]);
+      const [c, r, j, e, m] = await Promise.all([fetchConfigs(), fetchBacktests(), fetchJournal(), fetchEngines(), fetchMarkets()]);
       setConfigs(c);
       setRuns(r);
       setJournal(j);
-      setEngine(e);
+      setEngines(Object.fromEntries(e.map((row) => [row.market ?? 'US', row])));
+      setMarkets(m);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -56,13 +61,18 @@ export function StrategiesProvider({ children }: { children: ReactNode }) {
     };
   }, [refresh]);
 
-  const saveBudget = useCallback(async (s: StrategyCode, budget: number) => {
-    await saveConfig(s, { budget });
+  const saveBudget = useCallback(async (s: StrategyCode, market: MarketCode, budget: number) => {
+    await saveConfig(s, market, { budget });
     await refresh();
   }, [refresh]);
 
-  const setEnabled = useCallback(async (s: StrategyCode, enabled: boolean) => {
-    await saveConfig(s, { enabled });
+  const setEnabled = useCallback(async (s: StrategyCode, market: MarketCode, enabled: boolean) => {
+    await saveConfig(s, market, { enabled });
+    await refresh();
+  }, [refresh]);
+
+  const saveMarketConfig = useCallback(async (market: MarketCode, fields: Parameters<State['saveMarketConfig']>[1]) => {
+    await saveMarket(market, fields);
     await refresh();
   }, [refresh]);
 
@@ -77,7 +87,7 @@ export function StrategiesProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   return (
-    <Ctx.Provider value={{ configs, runs, journal, engine, error, refresh, saveBudget, setEnabled, runBacktest, removeRun }}>
+    <Ctx.Provider value={{ configs, runs, journal, markets, engines, error, refresh, saveBudget, setEnabled, saveMarketConfig, runBacktest, removeRun }}>
       {children}
     </Ctx.Provider>
   );

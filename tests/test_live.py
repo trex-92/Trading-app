@@ -72,7 +72,7 @@ class FakeBroker:
 class FakeSync:
     def __init__(self): self.trades, self.status = [], []
     def push_trade(self, t): self.trades.append(t)
-    def push_engine_status(self, s): self.status.append(s)
+    def push_engine_status(self, s, market='US'): self.status.append(s)
 
 
 def make(tmp_path, over=None, at=(40,), budget=100000, enabled=True, broker_cls=FakeBroker, fx=None, **kw):

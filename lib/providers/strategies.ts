@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type {
-  BacktestResult, BacktestRun, EngineRow, JournalTrade, StrategyCode, StrategyConfig,
+  BacktestResult, BacktestRun, EngineRow, JournalTrade, MarketCode, MarketConfig, StrategyCode, StrategyConfig,
 } from '@/features/strategies/types';
 
 function check<T>(res: { data: T | null; error: { message: string } | null }): T | null {
@@ -21,12 +21,13 @@ export async function fetchConfigs(): Promise<StrategyConfig[]> {
 /** Upserts only the given fields. The database trigger rejects budgets above the account balance. */
 export async function saveConfig(
   strategy: StrategyCode,
+  market: MarketCode,
   fields: Partial<Pick<StrategyConfig, 'budget' | 'enabled'>>,
 ): Promise<void> {
   const user_id = await userId();
   const { error } = await supabase
     .from('strategy_configs')
-    .upsert({ user_id, strategy, ...fields }, { onConflict: 'user_id,strategy' });
+    .upsert({ user_id, strategy, market, ...fields }, { onConflict: 'user_id,strategy,market' });
   if (error) throw new Error(error.message);
 }
 
@@ -59,19 +60,33 @@ export async function deleteBacktest(id: string): Promise<void> {
 export async function fetchJournal(limit = 200): Promise<JournalTrade[]> {
   return (
     check(
-      await supabase.from('strategy_trades').select('id,strategy,mode,ticker,entered_at,exited_at,entry,shares,pnl,r_multiple')
+      await supabase.from('strategy_trades').select('id,strategy,market,mode,ticker,entered_at,exited_at,entry,shares,pnl,r_multiple')
         .order('entered_at', { ascending: false }).limit(limit).returns<JournalTrade[]>(),
     ) ?? []
   );
 }
 
-export async function fetchEngine(): Promise<EngineRow | null> {
-  return check(await supabase.from('engine_status').select('state,updated_at').maybeSingle<EngineRow>());
+export async function fetchEngines(): Promise<EngineRow[]> {
+  return check(await supabase.from('engine_status').select('market,state,updated_at').returns<EngineRow[]>()) ?? [];
+}
+
+export async function fetchMarkets(): Promise<MarketConfig[]> {
+  return check(await supabase.from('market_configs').select('*').returns<MarketConfig[]>()) ?? [];
+}
+
+/** Upserts only the given fields (which markets run, their symbols, and the SG/MY paper balance). */
+export async function saveMarket(
+  market: MarketCode,
+  fields: Partial<Pick<MarketConfig, 'enabled' | 'symbols' | 'paper_balance'>>,
+): Promise<void> {
+  const user_id = await userId();
+  const { error } = await supabase.from('market_configs').upsert({ user_id, market, ...fields }, { onConflict: 'user_id,market' });
+  if (error) throw new Error(error.message);
 }
 
 export function subscribeToStrategies(onChange: () => void): () => void {
   const channel = supabase.channel('strategies');
-  for (const table of ['strategy_configs', 'backtest_runs', 'strategy_trades', 'engine_status']) {
+  for (const table of ['strategy_configs', 'backtest_runs', 'strategy_trades', 'engine_status', 'market_configs']) {
     channel.on('postgres_changes', { event: '*', schema: 'public', table }, onChange);
   }
   channel.subscribe();

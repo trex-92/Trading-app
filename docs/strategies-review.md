@@ -22,6 +22,44 @@ to 1%) can actually use the full 1%.
 Status of the code: strategies, shared risk layer and backtester are implemented and unit-tested on synthetic data.
 **No result in this repo says anything about real markets yet.** Every threshold is your untested default.
 
+## Markets: US, Singapore (SGX), Malaysia (Bursa)
+You choose which markets run in the app: **Settings > Markets** (switch, 1-3 symbols, and a paper balance for SG/MY).
+Budgets, backtests, engine status and the paper journal are all per market, in that market's currency.
+
+| | US | SG | MY |
+|---|---|---|---|
+| Hours (local, **unverified for SG/MY**) | 09:30-16:00 | 09:00-12:00, 13:00-17:00 | 09:00-12:30, 14:30-17:00 |
+| Trading minutes | 390 | 420 | 360 |
+| Lot size | 1 | 100 | 100 |
+| Paper orders | Moomoo simulated account | bot-side simulation, real quotes | bot-side simulation, real quotes |
+| Backtests | yes | yes (if Moomoo serves 1-minute history) | yes (same caveat) |
+| Fee assumption (placeholder) | $0.02/share | 0.15% round trip | 0.30% round trip |
+
+All windows are expressed in **trading minutes since the open**, so a lunch break never distorts them: entry windows
+are minutes 15-120 (A), 30-150 (B) and 60-300 (C), opening range = first 15 minutes, initial balance = first 60 minutes,
+flat 5 minutes before the close (C: 30). On a US day these are exactly the original clock times. Time stops also count
+trading minutes only. 5-minute bars never straddle the lunch break.
+
+**What I found that you should know:**
+1. **Fees probably make these strategies untradeable on SGX and Bursa.** The spec skips a trade when costs exceed 10%
+   of 1R. At 0.30% round-trip costs that needs a stop of 3% or more; at 0.15%, 1.5%. A's stops are at most 0.25% and
+   B's at most 1%. With the placeholder fees, backtests on MY/SG take **zero trades** and report "cost rule" skips.
+   Real fees may be lower, so put your actual numbers in `data/markets.json` (`cost_pct_round_trip`) before concluding
+   anything. Stamp duty and clearing fees are charged on both sides.
+2. **No Moomoo simulator exists for SGX or Bursa**, only HK, US, US options and Canada. So SG/MY paper trading is run
+   by the bot itself (`bot/brokers/local_paper.py`): real bid/ask quotes, simulated fills at the ask/bid, whole lots only.
+   That is optimistic (no queue, no partial fills, no impact), so treat it as an upper bound.
+3. **Hours are my best knowledge, not verified.** `python -m bot.smoke_moomoo` now prints the hours actually present in
+   Moomoo's data for SG and MY and says whether they match. Correct `data/markets.json` if not.
+4. **Thin liquidity.** A quote older than 60 seconds counts as stale for SG/MY (10 s for US), because many local
+   stocks trade less often than that. Spreads and tick sizes are much wider than SPY/QQQ; `entry_offset` (0.02) and
+   `stop_buffer_min` are in price units and may need scaling per stock. Tick sizes are not enforced.
+5. **Event calendar** is per market (`"markets": {"MY": {"blocked_days": [...], "half_days": [...]}}`). Exchange holidays
+   need no entry (no bars = no trading). Moomoo's 1-minute history for SG/MY is unverified (depth, completeness).
+6. **Operating hours are friendlier:** Bursa and SGX run during your day (09:00-17:00), so the PC does not need to
+   stay on overnight for these two. Same warning applies: if it sleeps, nothing trades and bot-held stops do nothing.
+7. The mega-cap / ETF suggestions (`ES3` for SG, `1155` for MY) are only sample symbols, not recommendations.
+
 ## 1. Problems found in the spec (most important first)
 
 1. **"Entry, stop and target as one bracket order" is not possible on this broker.**

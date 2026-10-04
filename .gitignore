@@ -22,3 +22,8 @@ android/
 # local market data and calendar
 data/*.csv
 data/calendar.json
+
+data/markets.json
+data/paper_*.json
+data/live_state_*.json
+data/journal_*.jsonl

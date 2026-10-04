@@ -1,10 +1,11 @@
 """Shared entry point for backtests (used by the CLI and by the worker that serves app requests)."""
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import time
 
 from .backtest import Backtester
-from .bars import Bar, is_regular
+from .bars import Bar
 from .calendar import Calendar
+from .market import US, Market
 from .params import RangeParams, ScalpParams, SharedParams, TrendParams, apply_overrides
 from .strategies import Range, Scalp, Trend
 
@@ -21,13 +22,19 @@ def defaults() -> dict:
             "B": _jsonable(asdict(TrendParams())), "C": _jsonable(asdict(RangeParams()))}
 
 
-def build(codes: list[str], overrides: dict | None):
+def base_shared(market: Market = US) -> SharedParams:
+    """Shared risk parameters with the market's lot size and (placeholder) cost model applied."""
+    return replace(SharedParams(), cost_per_share_round_trip=market.cost_per_share_round_trip,
+                   cost_pct_round_trip=market.cost_pct_round_trip, lot_size=market.lot_size)
+
+
+def build(codes: list[str], overrides: dict | None, market: Market = US):
     """overrides = {"shared": {...}, "A": {...}, "B": {...}, "C": {...}}; unknown keys raise ValueError."""
     overrides = overrides or {}
     bad = set(overrides) - {"shared", "A", "B", "C"}
     if bad:
         raise ValueError(f"unknown override section(s) {sorted(bad)}")
-    shared = apply_overrides(SharedParams(), overrides.get("shared")).validate()
+    shared = apply_overrides(base_shared(market), overrides.get("shared")).validate()
     strategies = []
     for c in codes:
         if c == "A":
@@ -42,17 +49,17 @@ def build(codes: list[str], overrides: dict | None):
 
 
 def run_backtest(codes: list[str], data: dict[str, list[Bar]], budget: float, overrides: dict | None = None,
-                 calendar: Calendar | None = None) -> dict:
+                 calendar: Calendar | None = None, market: Market = US) -> dict:
     if budget <= 0:
         raise ValueError("budget must be positive")
-    strategies, shared = build(codes, overrides)
-    res = Backtester(strategies, shared, budget, calendar).run(data)
+    strategies, shared = build(codes, overrides, market)
+    res = Backtester(strategies, shared, budget, calendar, market=market).run(data)
     coverage = {}
     for t, bars in data.items():
-        reg = [b for b in bars if is_regular(b.ts)]
+        reg = [b for b in bars if market.is_regular(b.ts)]
         coverage[t] = {"bars": len(bars), "days": len({b.ts.date() for b in reg}),
                        "first": reg[0].ts.isoformat() if reg else None, "last": reg[-1].ts.isoformat() if reg else None,
-                       "has_premarket": any(not is_regular(b.ts) for b in bars)}
-    return {"strategies": codes, "budget": budget, "stats": res.stats, "notes": res.notes, "skipped": res.skipped,
+                       "has_premarket": any(market.is_pre(b.ts) for b in bars)}
+    return {"strategies": codes, "market": market.code, "currency": market.currency, "budget": budget, "stats": res.stats, "notes": res.notes, "skipped": res.skipped,
             "equity_curve": res.equity_curve[-MAX_TRADES_RETURNED:], "trades": res.trades[-MAX_TRADES_RETURNED:],
             "trades_total": len(res.trades), "data": coverage}

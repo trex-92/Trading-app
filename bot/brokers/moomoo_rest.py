@@ -16,6 +16,7 @@ from datetime import date, datetime
 import httpx
 
 from ..intraday.bars import NY
+from ..intraday.market import US, Market
 from ..models import Order, Position
 from .base import Broker
 from ..moomoo_oauth import BASE, AuthError, OAuthSession, TokenStore
@@ -88,8 +89,8 @@ class MoomooRestBroker(Broker):
         return str(us[0]["account_id"])
 
     @staticmethod
-    def _code(symbol: str) -> str:
-        return symbol if "." in symbol else f"US.{symbol}"
+    def _code(symbol: str, market: Market = US) -> str:
+        return symbol if "." in symbol else f"{market.prefix}{symbol}"
 
     # ---- Broker interface -----------------------------------------------------------------
     def history(self, symbol, bars):
@@ -98,16 +99,17 @@ class MoomooRestBroker(Broker):
         rows = sorted(data.get("kline_list", []), key=lambda k: k["time_key"])
         return [float(k["close"]) for k in rows][-bars:]
 
-    def intraday_bars(self, symbol: str, start: date, end: date, ktype: int = 1, max_pages: int = 120):
+    def intraday_bars(self, symbol: str, start: date, end: date, market: Market = US, ktype: int = 1, max_pages: int = 120):
         """1-minute (ktype=1) bars incl. pre/after-market, oldest first, paging backwards from `end`.
         UNVERIFIED against the live service: the paging contract (next_time passed back as `end`) is from the docs;
         check coverage in the result's `data` section before trusting a backtest."""
         from ..intraday.data import bars_from_moomoo
         rows, seen, cursor = [], set(), end.isoformat()
         for _ in range(max_pages):
-            data = self._call("GET", f"/api/v1.0/quote/{self._code(symbol)}/history-kline", params={
-                "start": start.isoformat(), "end": cursor, "ktype": ktype, "autype": 1, "num": 370,
-                "extended_time": 1})
+            params = {"start": start.isoformat(), "end": cursor, "ktype": ktype, "autype": 1, "num": 370}
+            if market.extended_hours:
+                params["extended_time"] = 1   # pre/after-market bars (US only)
+            data = self._call("GET", f"/api/v1.0/quote/{self._code(symbol, market)}/history-kline", params=params)
             page = [k for k in data.get("kline_list", []) if k["time_key"] not in seen]
             if not page:
                 break
@@ -119,7 +121,7 @@ class MoomooRestBroker(Broker):
                 break
             cursor = str(nxt)
             self._sleep(0.15)
-        bars = bars_from_moomoo(rows)
+        bars = bars_from_moomoo(rows, market.tz)
         return [b for b in bars if start <= b.ts.date() <= end]
 
     # ---- live paper-trading support (simulated account only; REAL is deliberately not implemented) ------
@@ -129,22 +131,24 @@ class MoomooRestBroker(Broker):
         if self.real:
             raise NotImplementedError(f"{what} is only implemented for the simulated account (paper engine)")
 
-    def snapshot(self, symbols: list[str]) -> dict:
+    def snapshot(self, symbols: list[str], market: Market = US) -> dict:
         """{symbol: {last, bid, ask, ts}} where ts is the quote's update time (None if the service gave none)."""
-        data = self._call("POST", "/api/v1.0/quote/snapshot", json={"code_list": [self._code(x) for x in symbols]})
+        data = self._call("POST", "/api/v1.0/quote/snapshot", json={"code_list": [self._code(x, market) for x in symbols]})
         out = {}
         for r in data.get("snapshot_list", []):
             ut = int(r.get("update_time") or 0)
             out[r["code"].split(".", 1)[-1]] = {
                 "last": float(r["last_price"]), "bid": float(r.get("bid_price") or 0), "ask": float(r.get("ask_price") or 0),
-                "ts": datetime.fromtimestamp(ut / 1000, tz=NY) if ut > 0 else None}
+                "ts": datetime.fromtimestamp(ut / 1000, tz=market.tz) if ut > 0 else None}
         return out
 
-    def recent_bars(self, symbol: str, n: int = 15):
+    def recent_bars(self, symbol: str, n: int = 15, market: Market = US):
         from ..intraday.data import bars_from_moomoo
-        data = self._call("GET", f"/api/v1.0/quote/{self._code(symbol)}/history-kline", params={
-            "end": datetime.now(NY).date().isoformat(), "ktype": 1, "autype": 1, "num": n, "extended_time": 1})
-        return bars_from_moomoo(data.get("kline_list", []))[-n:]
+        params = {"end": datetime.now(market.tz).date().isoformat(), "ktype": 1, "autype": 1, "num": n}
+        if market.extended_hours:
+            params["extended_time"] = 1
+        data = self._call("GET", f"/api/v1.0/quote/{self._code(symbol, market)}/history-kline", params=params)
+        return bars_from_moomoo(data.get("kline_list", []), market.tz)[-n:]
 
     def equity(self) -> float:
         if self.real:
