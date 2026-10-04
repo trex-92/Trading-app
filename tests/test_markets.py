@@ -363,7 +363,7 @@ def test_smoke_checks_run_end_to_end_and_explain_refusals():
     text = "\n".join(lines)
     assert "[FAIL]" not in text and "matches the configured hours" in text and "regular" in text and "age=" in text
     assert "raw request start=" in text and "start == end" in text and "our paged fetch of the last 30 days" in text
-    assert "regular-session days" in text
+    assert "regular-session days" in text and "days back" in text and "365 days back" in text
     assert "MY.1155: Maybank | board lot 100 | exchange BMS" in text and "SG.D05: NOT RECOGNISED" in text
     lines.clear()
     run_checks(StubBroker(fail_sg="realtime quote permission required", fail_my="unsupported market"), out=lines.append)

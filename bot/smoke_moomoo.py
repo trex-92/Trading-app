@@ -71,6 +71,26 @@ def history_depth(broker):
     return "\n       " + "\n       ".join(lines)
 
 
+def history_reach(broker):
+    """Does 1-minute history exist N days back? One single-day request per distance (5 requests in total)."""
+    from .intraday.data import bars_from_moomoo
+    today, lines = date.today(), []
+    for back in (30, 90, 180, 365, 730):
+        day = today - timedelta(days=back)
+        while day.weekday() >= 5:
+            day -= timedelta(days=1)
+        try:
+            d = broker._call("GET", "/api/v1.0/quote/US.SPY/history-kline", params={
+                "start": day.isoformat(), "end": (day + timedelta(days=1)).isoformat(), "ktype": 1, "autype": 1, "num": 370})
+            bars = bars_from_moomoo(d.get("kline_list", []), US.tz)
+            regular = [b for b in bars if US.is_regular(b.ts)]
+            lines.append(f"{back:>3} days back ({day}): {len(bars)} bars, {len(regular)} regular-session"
+                         + ("" if bars else "  <- no data (a holiday, or beyond the history Moomoo keeps)"))
+        except Exception as e:  # noqa: BLE001
+            lines.append(f"{back:>3} days back ({day}): FAILED {e}")
+    return "\n       " + "\n       ".join(lines)
+
+
 def market_probe(broker, market, symbol):
     """History and quotes are probed separately: they can be refused for different reasons."""
     lines = []
@@ -124,6 +144,7 @@ def run_checks(broker, order=False, out=print, probes=None, fractional=False):
     step("SPY quote freshness", lambda: us_quote_age(broker), out)
     step("1-minute SPY history (first regular bar should read 09:30, last 15:59)", lambda: us_history(broker), out)
     step("1-minute history paging (does a month come back?)", lambda: history_depth(broker), out)
+    step("How far back does 1-minute history reach?", lambda: history_reach(broker), out)
     step("Symbol lookup (is the code right, and what is the board lot?)", lambda: symbol_lookup(broker, probes or DEFAULT_PROBES), out)
     step("Singapore (SGX) data", lambda: market_probe(broker, SG, "ES3"), out)
     step("Malaysia (Bursa) data", lambda: market_probe(broker, MY, "1155"), out)
