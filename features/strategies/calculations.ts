@@ -1,7 +1,8 @@
 import type { BacktestResult, EngineRow, JournalTrade, MarketCode, MarketConfig, StrategyCode, StrategyConfig } from './types';
 
 export const PAPER_TRADES_REQUIRED = 100;
-export const MAX_BACKTEST_DAYS = 90;
+export const MAX_BACKTEST_DAYS = 365;
+export const MAX_SYMBOLS = 10;
 
 export const STRATEGIES: Record<StrategyCode, { name: string; tab: string; blurb: string }> = {
   A: { name: 'Scalp: VWAP trend pullback', tab: 'Scalp', blurb: 'Buys the first or second pullback in a clean intraday uptrend, 09:45-11:30 ET.' },
@@ -34,7 +35,8 @@ export function accountLimit(market: MarketCode, botEquity: number | null, marke
 
 export function parseSymbols(raw: string, market: MarketCode): { symbols: string[]; error: string | null } {
   const symbols = raw.split(/[,\s]+/).filter(Boolean).map((t) => t.toUpperCase());
-  if (symbols.length < 1 || symbols.length > 3) return { symbols, error: `Use 1 to 3 symbols, e.g. ${MARKETS[market].sample}` };
+  if (symbols.length < 1 || symbols.length > MAX_SYMBOLS) return { symbols, error: `Use 1 to ${MAX_SYMBOLS} symbols, e.g. ${MARKETS[market].sample}` };
+  if (new Set(symbols).size !== symbols.length) return { symbols, error: 'Each symbol can only be listed once' };
   if (!symbols.every((t) => MARKETS[market].pattern.test(t))) return { symbols, error: `Not valid ${market} symbols. Example: ${MARKETS[market].sample}` };
   return { symbols, error: null };
 }

@@ -66,6 +66,15 @@ class Market:
             minute -= length
         raise ValueError("minute beyond the session")
 
+    def minutes_to_open(self, ts: datetime) -> float | None:
+        """Minutes until today's open (None on weekends or once the session has started)."""
+        local = ts.astimezone(self.tz)
+        if not self.is_trading_weekday(local):
+            return None
+        opening = datetime.combine(local.date(), self.sessions[0][0], tzinfo=self.tz)
+        delta = (opening - local).total_seconds() / 60
+        return delta if delta > 0 else None
+
     def now(self) -> datetime:
         return datetime.now(self.tz)
 

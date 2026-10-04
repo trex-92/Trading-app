@@ -30,6 +30,7 @@ from .runner import base_shared, build
 
 BAR_LAG = timedelta(seconds=2)       # wait this long after a minute ends before trusting its bar
 FRESH = timedelta(seconds=90)        # only bars this recent may trigger an entry (catch-up bars never do)
+PRE_OPEN_MINUTES = 45                 # load history this long before the open (10 symbols take a few minutes on a cold cache)
 GRACE = timedelta(seconds=10)         # keep processing this long after a session segment ends so its last bar is seen
 SELL_BUFFERS = (0.001, 0.002, 0.004)  # marketable-limit sell: 0.1%, then 0.2%, then 0.4% below the last price
 
@@ -109,23 +110,15 @@ class LiveRunner:
         in_session = now.weekday() < 5 and (self.market.minute_of_session(now) is not None
                                             or self.market.minute_of_session(now - GRACE) is not None)
         if not in_session:
+            to_open = self.market.minutes_to_open(now)
+            if to_open is not None and to_open <= PRE_OPEN_MINUTES and self.day != now.date():
+                self._refresh_configs(now)
+                self._ensure_day(now)          # history, prior-day levels, reconcile: ready before the bell
             self._publish(now, "closed")
             return
         self._refresh_configs(now)
-        if self.day != now.date():
-            if self._retry_at and now < self._retry_at:
-                self._publish(now, "open")
-                return
-            try:
-                self._new_day(now)
-                self.data_error = None
-            except Exception as e:  # noqa: BLE001 - e.g. no quote right / unsupported market: say so once, retry in a minute
-                msg = explain_error(e, self.market)
-                if msg != self.data_error:
-                    self.log(f"[live] {self.market.code} data problem: {msg}")
-                self.data_error, self.day, self._retry_at = msg, None, now + timedelta(seconds=60)
-                self._publish(now, "open", force=True)
-                return
+        if self.day != now.date() and not self._ensure_day(now):
+            return
         prices = self._snapshot(now)
         if prices is not None:
             self._manage_price(now, prices)
@@ -135,6 +128,25 @@ class LiveRunner:
                 self._process_bars(now, prices)
         self._save_state()
         self._publish(now, "open")
+
+    def _ensure_day(self, now: datetime) -> bool:
+        """Set up today (history, levels, reconcile). A data problem is reported once and retried after a minute."""
+        if self.day == now.date():
+            return True
+        if self._retry_at and now < self._retry_at:
+            self._publish(now, "open")
+            return False
+        try:
+            self._new_day(now)
+            self.data_error = None
+            return True
+        except Exception as e:  # noqa: BLE001 - e.g. no quote right / unsupported market: say so once, retry in a minute
+            msg = explain_error(e, self.market)
+            if msg != self.data_error:
+                self.log(f"[live] {self.market.code} data problem: {msg}")
+            self.data_error, self.day, self._retry_at = msg, None, now + timedelta(seconds=60)
+            self._publish(now, "open", force=True)
+            return False
 
     # ---- day setup & reconcile -----------------------------------------------------------------------
     def _new_day(self, now: datetime) -> None:

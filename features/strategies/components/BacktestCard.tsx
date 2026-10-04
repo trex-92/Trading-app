@@ -55,7 +55,7 @@ export function BacktestCard({ code, market }: { code: StrategyCode; market: Mar
       <ThemedText type="small" themeColor="textSecondary">
         Replays 1-minute history through this strategy and the shared risk rules. Untested default thresholds; not a forecast.
       </ThemedText>
-      <Field label={`Symbols (1-3), e.g. ${MARKETS[market].sample}`}><TextInput style={input} value={tickers} onChangeText={setTickers} autoCapitalize="characters" /></Field>
+      <Field label={`Symbols (1-10), e.g. ${MARKETS[market].sample}`}><TextInput style={input} value={tickers} onChangeText={setTickers} autoCapitalize="characters" /></Field>
       <View style={styles.pair}>
         <View style={{ flex: 1 }}><Field label="From"><TextInput style={input} value={start} onChangeText={setStart} autoCapitalize="none" /></Field></View>
         <View style={{ flex: 1 }}><Field label="To"><TextInput style={input} value={end} onChangeText={setEnd} autoCapitalize="none" /></Field></View>
@@ -113,7 +113,11 @@ function RunView({ run, onDelete }: { run: BacktestRun; onDelete: () => void }) 
   }, [run.id, done]);
 
   if (run.status === 'pending' || run.status === 'running') {
-    return <ThemedText themeColor="textSecondary">{run.status === 'pending' ? 'Waiting for the bot to pick this up…' : 'Running…'}</ThemedText>;
+    return (
+      <ThemedText themeColor="textSecondary">
+        {run.status === 'pending' ? 'Waiting for the bot to pick this up…' : run.summary?.progress ?? 'Running…'}
+      </ThemedText>
+    );
   }
   if (run.status === 'error') {
     return (

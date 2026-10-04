@@ -329,3 +329,24 @@ def test_restart_resumes_a_fractional_position(tmp_path):
                     fill_timeout=0.01, strategy_factory=lambda codes, ov: [Fixed([], name="A")])
     drive(r2, clock, b, 43, 47)
     assert r2.halt_reason is None and sync.trades and sync.trades[0]["shares"] == 0.5
+
+
+def test_history_is_loaded_before_the_open_and_trading_starts_normally(tmp_path):
+    r, b, sync, clock, logs = make(tmp_path)
+    clock.now = datetime(2026, 9, 2, 8, 50, tzinfo=NY)               # 40 minutes before the bell
+    r.cycle()
+    assert r.day == D2 and any("new day" in m for m in logs) and b.placed == []
+    assert sync.status[-1]["session"] == "closed"                      # still reported as closed
+    loaded = [m for m in logs if "new day" in m]
+    drive(r, clock, b, 0, 41)                                           # the open: no second set-up, the signal is taken
+    assert [m for m in logs if "new day" in m] == loaded and b.placed and b.placed[0][0] == "BUY"
+
+
+def test_nothing_is_loaded_long_before_the_open_or_on_weekends(tmp_path):
+    r, b, sync, clock, logs = make(tmp_path)
+    clock.now = datetime(2026, 9, 2, 6, 0, tzinfo=NY)                  # 3.5 hours early
+    r.cycle()
+    assert r.day is None
+    clock.now = datetime(2026, 9, 5, 9, 0, tzinfo=NY)                  # Saturday
+    r.cycle()
+    assert r.day is None

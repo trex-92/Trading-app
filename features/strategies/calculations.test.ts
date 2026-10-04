@@ -42,7 +42,7 @@ describe('inputs', () => {
     const today = new Date('2026-10-05T12:00:00Z');
     expect(validateRange('2026-09-01', '2026-09-30', today)).toBeNull();
     expect(validateRange('2026-09-30', '2026-09-01', today)).toMatch(/before/);
-    expect(validateRange('2026-01-01', '2026-09-30', today)).toMatch(/Maximum/);
+    expect(validateRange('2025-08-01', '2026-09-30', today)).toMatch(/Maximum/);
     expect(validateRange('2026-09-01', '2027-01-01', today)).toMatch(/future/);
     expect(validateRange('x', '2026-09-30', today)).toMatch(/Dates/);
   });
@@ -53,8 +53,10 @@ describe('inputs', () => {
 
   it('parses tickers', () => {
     expect(parseTickers('spy, qqq').tickers).toEqual(['SPY', 'QQQ']);
-    expect(parseTickers('').error).toMatch(/1 to 3/);
-    expect(parseTickers('a b c d').error).toMatch(/1 to 3/);
+    expect(parseTickers('').error).toMatch(/1 to 10/);
+    expect(parseTickers('a b c d e f g h i j k').error).toMatch(/1 to 10/);
+    expect(parseTickers('a b c d e f g h i j').error).toBeNull();
+    expect(parseTickers('SPY SPY').error).toMatch(/only be listed once/);
     expect(parseTickers('SPY; DROP').error).toMatch(/Not valid US symbols/);
   });
 });
@@ -140,7 +142,7 @@ describe('markets', () => {
     expect(parseSymbols('1155, 5225', 'MY')).toEqual({ symbols: ['1155', '5225'], error: null });
     expect(parseSymbols('d05 es3', 'SG').symbols).toEqual(['D05', 'ES3']);
     expect(parseSymbols('1155', 'US').error).toMatch(/Not valid US/);
-    expect(parseSymbols('', 'MY').error).toMatch(/1 to 3/);
+    expect(parseSymbols('', 'MY').error).toMatch(/1 to 10/);
     expect(parseTickers('SPY', 'US').error).toBeNull();
   });
 

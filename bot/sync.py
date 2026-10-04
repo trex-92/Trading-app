@@ -72,6 +72,9 @@ class SupabaseSync:
                 claimed.append(row)
         return claimed
 
+    def progress_backtest(self, run_id: str, text: str) -> None:
+        self._req("PATCH", "/backtest_runs", params={"id": f"eq.{run_id}", "status": "eq.running"}, json={"summary": {"progress": text}})
+
     def finish_backtest(self, run_id: str, summary: dict, result: dict) -> None:
         self._req("PATCH", "/backtest_runs", params={"id": f"eq.{run_id}"},
                   json={"status": "done", "summary": summary, "result": result, "finished_at": now()})

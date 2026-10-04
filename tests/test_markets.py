@@ -424,3 +424,10 @@ def test_rate_limit_message_tells_the_user_what_to_do():
     from bot.intraday.market import explain_error
     msg = explain_error(RuntimeError("rate limit exceeded"), US)
     assert "Wait a minute" in msg and "saved" in msg
+
+
+def test_minutes_to_open():
+    at = lambda h, m, d=2: datetime(2026, 9, d, h, m, tzinfo=MY.tz)    # noqa: E731
+    assert MY.minutes_to_open(at(8, 30)) == 30 and MY.minutes_to_open(at(9, 0)) is None and MY.minutes_to_open(at(13, 0)) is None
+    assert MY.minutes_to_open(at(8, 30, 5)) is None                    # Saturday
+    assert US.minutes_to_open(datetime(2026, 9, 2, 8, 50, tzinfo=US.tz)) == 40

@@ -41,6 +41,7 @@ export type BacktestStats = {
 export type BacktestRequest = { market?: MarketCode; tickers: string[]; start: string; end: string; budget: number };
 
 export type BacktestSummary = {
+  progress?: string;   // while running: what the bot is doing (the other fields are then absent)
   stats: BacktestStats;
   notes: string[];
   request: BacktestRequest;

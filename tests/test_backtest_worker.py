@@ -36,7 +36,7 @@ def req(**over):
 
 def test_parse_request_validation():
     assert parse_request("A", req(), TODAY)["tickers"] == ["SPY"]
-    for bad in (req(tickers=["spy; drop table"]), req(start="2026-01-01"), req(budget=0),
+    for bad in (req(tickers=["spy; drop table"]), req(start="2025-08-01"), req(budget=0),
                 req(start="2026-09-30", end="2026-09-01"), req(overrides=[1]), {"start": "x"}):
         with pytest.raises((ValueError, KeyError)):
             parse_request("A", bad, TODAY)
@@ -80,3 +80,28 @@ def test_short_history_triggers_a_loud_warning():
     full = FakeSync([{"id": "full", "strategy": "A", "params": req(start="2026-09-01", end="2026-09-25")}])
     BacktestWorker(full, provider, "nope.json", log=lambda *a: None).poll_once()
     assert not any("only" in n and "trading days" in n for n in full.done["full"][0]["notes"])
+
+
+def test_up_to_ten_different_symbols_and_a_year_are_accepted():
+    ten = ["SPY", "QQQ", "IWM", "DIA", "XLK", "XLF", "XLE", "XLV", "AAPL", "MSFT"]
+    r = parse_request("A", req(tickers=ten, start="2025-10-06", end="2026-09-25"), TODAY)
+    assert r["tickers"] == ten
+    for bad in (ten + ["SPY"], ["SPY", "SPY"], req(start="2025-09-01")["start"]):
+        with pytest.raises((ValueError, TypeError, KeyError)):
+            parse_request("A", req(tickers=bad) if isinstance(bad, list) else req(start=bad), TODAY)
+
+
+def test_worker_reports_download_progress_per_symbol():
+    class ProgressSync(FakeSync):
+        def __init__(self, runs):
+            super().__init__(runs)
+            self.progress = []
+
+        def progress_backtest(self, rid, text):
+            self.progress.append(text)
+
+    sync = ProgressSync([{"id": "p1", "strategy": "A", "params": req(tickers=["SPY", "QQQ", "IWM"])}])
+    BacktestWorker(sync, provider, "nope.json", log=lambda *a: None).poll_once()
+    assert [p.split(":")[1].split("(")[0].strip() for p in sync.progress[:3]] == ["SPY", "QQQ", "IWM"]
+    assert "1 of 3" in sync.progress[0] and sync.progress[-1].startswith("Running the simulation")
+    assert "p1" in sync.done

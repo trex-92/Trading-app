@@ -8,7 +8,8 @@ from .data import business_days
 from .market import explain_error, get_market
 from .runner import NAMES, run_backtest
 
-MAX_DAYS = 90
+MAX_DAYS = 365
+MAX_SYMBOLS = 10
 
 
 def parse_request(strategy: str, params: dict, today: date | None = None, markets_path: str | None = None) -> dict:
@@ -17,8 +18,8 @@ def parse_request(strategy: str, params: dict, today: date | None = None, market
         raise ValueError(f"unknown strategy {strategy!r}")
     market = get_market(str(params.get("market") or "US"), markets_path)
     tickers = [str(t).upper() for t in params.get("tickers") or market.default_symbols]
-    if not 1 <= len(tickers) <= 3 or not all(re.match(market.ticker_pattern, t) for t in tickers):
-        raise ValueError(f"tickers: 1 to 3 {market.code} symbols, e.g. {', '.join(market.default_symbols)}")
+    if not 1 <= len(tickers) <= MAX_SYMBOLS or len(set(tickers)) != len(tickers) or not all(re.match(market.ticker_pattern, t) for t in tickers):
+        raise ValueError(f"tickers: 1 to {MAX_SYMBOLS} different {market.code} symbols, e.g. {', '.join(market.default_symbols)}")
     start, end = date.fromisoformat(params["start"]), date.fromisoformat(params["end"])
     if end > today:
         end = today
@@ -51,7 +52,14 @@ class BacktestWorker:
         try:
             req = parse_request(run["strategy"], run.get("params") or {}, markets_path=self.markets_path)
             market = get_market(req["market"], self.markets_path)
-            data = {t: self.bars(t, req["start"] - timedelta(days=5), req["end"], market) for t in req["tickers"]}
+            progress = getattr(self.sync, "progress_backtest", lambda *a: None)
+            data, n = {}, len(req["tickers"])
+            for i, t in enumerate(req["tickers"], 1):
+                progress(run["id"], f"Downloading price history: {t} ({i} of {n}). A first download of a long range is slow because "
+                                    f"Moomoo limits requests; finished days are saved, so repeats are fast.")
+                data[t] = self.bars(t, req["start"] - timedelta(days=5), req["end"], market)
+                self.log(f"[backtest] {run['id']} downloaded {t} ({i}/{n})")
+            progress(run["id"], "Running the simulation…")
             if not any(data.values()):
                 raise RuntimeError("no price data returned for that range (market holidays, or history not available)")
             res = run_backtest([run["strategy"]], data, req["budget"], req["overrides"],
