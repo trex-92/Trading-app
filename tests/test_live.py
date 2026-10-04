@@ -75,12 +75,18 @@ class FakeSync:
     def push_engine_status(self, s, market='US'): self.status.append(s)
 
 
+# The tests exercise entries, exits and bookkeeping under a simple, known cost model ($0.02/share, nothing else). The real Moomoo
+# schedule (percentage commission plus a fixed fee per order) is tested separately in test_intraday.py and below.
+SIMPLE_COSTS = {"cost_per_share_round_trip": 0.02, "cost_pct_round_trip": 0.0, "cost_per_order": 0.0}
+
+
 def make(tmp_path, over=None, at=(40,), budget=100000, enabled=True, broker_cls=FakeBroker, fx=None,
          configs_shared=None, seen=None, **kw):
     clock = Clock()
     broker = broker_cls({"SPY": mkday(D1) + mkday(D2, over)}, clock)
     sync, logs = FakeSync(), []
     params = {"shared": configs_shared} if configs_shared is not None else {}
+    kw.setdefault("shared", SharedParams(**SIMPLE_COSTS))
     cfg = lambda: [{"strategy": "A", "enabled": enabled, "budget": budget, "params": dict(params)}]  # noqa: E731
 
     def factory(codes, ov):
@@ -350,3 +356,11 @@ def test_nothing_is_loaded_long_before_the_open_or_on_weekends(tmp_path):
     clock.now = datetime(2026, 9, 5, 9, 0, tzinfo=NY)                  # Saturday
     r.cycle()
     assert r.day is None
+
+
+def test_fixed_fee_per_order_reaches_the_journal(tmp_path):
+    fees = SharedParams(cost_per_share_round_trip=0.0, cost_pct_round_trip=0.0, cost_per_order=1.0, max_cost_pct_of_1R=1e9)
+    r, b, sync, clock, logs = make(tmp_path, {45: (100, 100.1, 98.8, 98.9), 46: (98.9, 99, 98.8, 98.9)}, shared=fees)
+    drive(r, clock, b, 0, 47)
+    t = sync.trades[0]
+    assert len(t["exits"]) == 1 and t["costs"] == pytest.approx(2.0)          # entry order + one exit order

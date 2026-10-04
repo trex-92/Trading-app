@@ -175,6 +175,15 @@ describe('funnelRows', () => {
     expect(rows.find((r) => r.key === 'A.window_minutes')?.count).toBe(5000);
   });
 
+  it('shows the stop-width buckets under the stop rejection, without counting them as extra losses', () => {
+    const rows = funnelRows({ A: { rejected_stop_too_wide: 6, rejected_stop_too_wide_1_2x: 4, rejected_stop_too_wide_beyond: 2 } }, 'A');
+    expect(rows.map((r) => [r.label, r.count, r.lost])).toEqual([
+      ['Stop wider than the strategy allows', 6, true],
+      ['  …up to 20% over the limit', 4, false],
+      ['  …more than 2.4 times the limit', 2, false],
+    ]);
+  });
+
   it('copes with older results that have no funnel and unknown counters', () => {
     expect(funnelRows(undefined, 'B')).toEqual([]);
     expect(funnelRows({ B: { some_new_counter: 3 } }, 'B')[0]).toMatchObject({ label: 'some new counter', lost: false });

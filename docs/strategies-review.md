@@ -33,7 +33,7 @@ Budgets, backtests, engine status and the paper journal are all per market, in t
 | Lot size | 1 | 100 | 100 |
 | Paper orders | Moomoo simulated account | bot-side simulation, real quotes | bot-side simulation, real quotes |
 | Backtests | yes | yes (if Moomoo serves 1-minute history) | yes (same caveat) |
-| Fee assumption (placeholder) | $0.02/share | 0.15% round trip | 0.30% round trip |
+| Fee assumption | Moomoo US: 0.03% commission per order + $0.99 per order (0.06% round trip + $1.98 or more) | 0.15% round trip (placeholder) | 0.30% round trip (placeholder) |
 
 All windows are expressed in **trading minutes since the open**, so a lunch break never distorts them: entry windows
 are minutes 15-120 (A), 30-150 (B) and 60-300 (C), opening range = first 15 minutes, initial balance = first 60 minutes,
@@ -135,8 +135,10 @@ instead of "cannot afford one". R-multiples are unaffected by the cap; dollar P&
 
 Signal at the trigger bar's close; a marketable limit lives for the next 1m bar only (fills at the open if open <= limit,
 else at the limit if the bar trades down to it, else no trade). If one bar touches stop and target, the stop is assumed
-first. A gap through a stop fills at the open. After T1 the breakeven stop is first checked on the next bar. Cost is
-$0.02/share round trip (assumption, `cost_per_share_round_trip`). No lookahead (tested): truncating the future leaves
+first. A gap through a stop fills at the open. After T1 the breakeven stop is first checked on the next bar. US costs
+are Moomoo's schedule as supplied by the account holder: 0.03% of the amount on each order (`cost_pct_round_trip` = 0.06) plus
+$0.99 on every order (`cost_per_order`); every partial exit is its own order, so a trade with a half-off at target 1 pays three
+platform fees. Exchange and regulatory fees (SEC, TAF, settlement) are not included. No lookahead (tested): truncating the future leaves
 earlier trades unchanged.
 
 ## 4. The paper engine (built; untested against the real simulated account)
@@ -152,7 +154,7 @@ Run with `LIVE_STRATEGIES=yes`, `BROKER=moomoo_rest`, `TRADE_ENV=SIMULATE` in `b
   watched; recovers by itself. Any rejected order: entries halt until the bot is restarted;
 - carries yesterday's position out at the open if the bot missed the end-of-day exit;
 - journals closed trades to `strategy_trades` (and `data/journal.jsonl`), publishes `engine_status` for the app.
-Costs in paper trades are the assumed $/share, because the simulator reports no fees.
+Costs in paper trades are the assumed schedule (percentage plus per-order fee), because the simulator reports no fees.
 
 **Operating requirement:** all of this runs on the PC that runs the bot. If it sleeps or goes offline, there are no
 trades and no stop protection.

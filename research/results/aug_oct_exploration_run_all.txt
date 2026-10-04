@@ -1,0 +1,144 @@
+symbols: ['AAPL', 'IBM', 'KO', 'MSFT', 'MU', 'NVDA', 'QQQI', 'SPY', 'TSLA']
+unseen : ['ABBV', 'META']
+days per symbol: {'AAPL': 44, 'IBM': 44, 'KO': 44, 'MSFT': 44, 'MU': 44, 'NVDA': 44, 'QQQI': 44, 'SPY': 44, 'TSLA': 44, 'ABBV': 24, 'META': 24}
+design period ends 2026-09-15; holdout is after that date
+costs assumed: $0.02/share round trip (a placeholder; see README)
+
+====================================================================================================
+1. Market context: where did the basket's return come from?  (sum of daily %, equal weight)
+====================================================================================================
+  design  : intraday +5.41%   overnight +0.63%
+  holdout : intraday -1.18%   overnight +4.25%
+  (an intraday long-only strategy can only earn the intraday part; a strong intraday tape flatters any long strategy)
+
+====================================================================================================
+2. The three strategies exactly as specified, in the real engine
+====================================================================================================
+A Scalp all                              n=   6 win= 66.7% avgR=+0.689 [+nan,+nan] PF=3.12 ret/trade=+0.087%
+   design                                n=   4 win= 75.0% avgR=+0.769 [+nan,+nan] PF=4.08 ret/trade=+0.118%
+   holdout                               n=   2 win= 50.0% avgR=+0.528 [+nan,+nan] PF=2.11 ret/trade=+0.023%
+B Trend all                              n=  25 win= 28.0% avgR=+0.019 [+nan,+nan] PF=1.05 ret/trade=+0.014%
+   design                                n=  18 win= 27.8% avgR=+0.133 [+nan,+nan] PF=1.40 ret/trade=+0.091%
+   holdout                               n=   7 win= 28.6% avgR=-0.276 [+nan,+nan] PF=0.37 ret/trade=-0.181%
+C Range all                              n=  14 win= 28.6% avgR=-0.297 [+nan,+nan] PF=0.49 ret/trade=-0.002%
+   design                                n=  11 win= 36.4% avgR=-0.158 [+nan,+nan] PF=0.70 ret/trade=+0.024%
+   holdout                               n=   3 win=  0.0% avgR=-0.806 [+nan,+nan] PF=0.00 ret/trade=-0.099%
+
+====================================================================================================
+3. Every Scalp pullback trigger (no filters), spec window 09:45-11:30, fee rule applied
+====================================================================================================
+all triggers                             n= 523 win= 38.6% avgR=-0.069 [-0.22,+0.08] PF=0.87 ret/trade=-0.015%
+   design                                n= 389 win= 42.7% avgR=+0.041 [-0.14,+0.22] PF=1.08 ret/trade=+0.010%
+   holdout                               n= 134 win= 26.9% avgR=-0.388 [-0.54,-0.23] PF=0.42 ret/trade=-0.089%
+
+  each spec condition alone, pass vs fail (raw R, not adjusted for the tape):
+  PASS close>VWAP (5m)                     n= 453 win= 37.3% avgR=-0.090 [+nan,+nan] PF=0.84 ret/trade=-0.018%
+  FAIL close>VWAP (5m)                     n=  70 win= 47.1% avgR=+0.069 [+nan,+nan] PF=1.15 ret/trade=+0.002%
+  PASS VWAP rising                         n= 379 win= 36.9% avgR=-0.106 [+nan,+nan] PF=0.81 ret/trade=-0.026%
+  FAIL VWAP rising                         n= 144 win= 43.1% avgR=+0.028 [+nan,+nan] PF=1.06 ret/trade=+0.012%
+  PASS EMA9>EMA20                          n= 259 win= 40.9% avgR=-0.038 [+nan,+nan] PF=0.93 ret/trade=-0.006%
+  FAIL EMA9>EMA20                          n= 264 win= 36.4% avgR=-0.099 [+nan,+nan] PF=0.82 ret/trade=-0.024%
+  PASS EMAs both rising                    n= 194 win= 40.2% avgR=-0.049 [+nan,+nan] PF=0.91 ret/trade=-0.029%
+  FAIL EMAs both rising                    n= 329 win= 37.7% avgR=-0.081 [+nan,+nan] PF=0.86 ret/trade=-0.007%
+  PASS VWAP crosses<=2                     n= 346 win= 38.4% avgR=-0.079 [+nan,+nan] PF=0.85 ret/trade=-0.021%
+  FAIL VWAP crosses<=2                     n= 177 win= 39.0% avgR=-0.049 [+nan,+nan] PF=0.91 ret/trade=-0.005%
+  PASS 5m close>OR high seen               n= 228 win= 39.9% avgR=-0.059 [+nan,+nan] PF=0.89 ret/trade=-0.019%
+  FAIL 5m close>OR high seen               n= 295 win= 37.6% avgR=-0.077 [+nan,+nan] PF=0.86 ret/trade=-0.012%
+  PASS stop<=0.25%                         n= 293 win= 35.8% avgR=-0.101 [+nan,+nan] PF=0.83 ret/trade=-0.014%
+  FAIL stop<=0.25%                         n= 230 win= 42.2% avgR=-0.028 [+nan,+nan] PF=0.94 ret/trade=-0.016%
+  PASS no key level in 1.5R                n= 194 win= 41.2% avgR=+0.009 [+nan,+nan] PF=1.02 ret/trade=+0.003%
+  FAIL no key level in 1.5R                n= 329 win= 37.1% avgR=-0.115 [+nan,+nan] PF=0.80 ret/trade=-0.026%
+  PASS pullback #1-2                       n= 212 win= 43.9% avgR=+0.066 [+nan,+nan] PF=1.13 ret/trade=+0.011%
+  FAIL pullback #1-2                       n= 311 win= 35.0% avgR=-0.161 [+nan,+nan] PF=0.73 ret/trade=-0.033%
+
+  expectancy by number of spec conditions passed (does it rise with more filters?):
+  score=3                                  n=  84 win= 36.9% avgR=-0.140 [+nan,+nan] PF=0.75 ret/trade=-0.024%
+  score=4                                  n= 100 win= 35.0% avgR=-0.107 [+nan,+nan] PF=0.81 ret/trade=-0.015%
+  score=5                                  n= 104 win= 46.2% avgR=+0.119 [+nan,+nan] PF=1.24 ret/trade=+0.037%
+  score=6                                  n=  91 win= 38.5% avgR=-0.110 [+nan,+nan] PF=0.80 ret/trade=-0.041%
+  score=7                                  n=  65 win= 36.9% avgR=-0.163 [+nan,+nan] PF=0.72 ret/trade=-0.009%
+  score=8                                  n=  35 win= 31.4% avgR=-0.124 [+nan,+nan] PF=0.80 ret/trade=-0.078%
+  score=9                                  n=   4 win= 75.0% avgR=+0.850 [+nan,+nan] PF=4.58 ret/trade=+0.099%
+
+====================================================================================================
+4. Entry-timing alpha: actual entry minus random entries on the same symbol-day (same time of day, same stop %, same exits)
+====================================================================================================
+A pullback trigger (all)                   n= 523 actual R=-0.074  random-entry R=-0.002  ALPHA R=-0.072 [-0.17,+0.03]  alpha ret=-0.0206% [-0.049,+0.006]
+   design                                  n= 389 actual R=+0.038  random-entry R=+0.055  ALPHA R=-0.017 [-0.14,+0.10]  alpha ret=-0.0072% [-0.041,+0.024]
+   holdout                                 n= 134 actual R=-0.401  random-entry R=-0.168  ALPHA R=-0.233 [-0.36,-0.12]  alpha ret=-0.0597% [-0.094,-0.028]
+the spec's own signals                     n=   6 actual R=+0.523  random-entry R=-0.034  ALPHA R=+0.557 [-0.20,+1.32]  alpha ret=+0.0625% [-0.069,+0.188]
+PASS EMA9>EMA20                            n= 259 actual R=-0.036  random-entry R=-0.064  ALPHA R=+0.028 [-0.11,+0.16]  alpha ret=+0.0074% [-0.035,+0.045]
+FAIL EMA9>EMA20                            n= 264 actual R=-0.112  random-entry R=+0.059  ALPHA R=-0.170 [-0.29,-0.05]  alpha ret=-0.0481% [-0.079,-0.021]
+PASS 5m close>OR high seen                 n= 228 actual R=-0.071  random-entry R=-0.086  ALPHA R=+0.015 [-0.11,+0.15]  alpha ret=-0.0001% [-0.036,+0.032]
+FAIL 5m close>OR high seen                 n= 295 actual R=-0.077  random-entry R=+0.063  ALPHA R=-0.139 [-0.25,-0.03]  alpha ret=-0.0365% [-0.068,-0.004]
+PASS no key level in 1.5R                  n= 194 actual R=-0.000  random-entry R=-0.002  ALPHA R=+0.002 [-0.15,+0.15]  alpha ret=-0.0036% [-0.038,+0.033]
+FAIL no key level in 1.5R                  n= 329 actual R=-0.118  random-entry R=-0.002  ALPHA R=-0.116 [-0.22,-0.00]  alpha ret=-0.0307% [-0.061,-0.001]
+
+  alternative entry families (one canonical setting each, not tuned):
+E1a buy the dip, spec regime               n= 229 actual R=-0.081  random-entry R=-0.046  ALPHA R=-0.036 [-0.17,+0.10]  alpha ret=-0.0080% [-0.031,+0.014]
+   design                                  n= 175 actual R=-0.087  random-entry R=-0.017  ALPHA R=-0.070 [-0.24,+0.10]  alpha ret=-0.0142% [-0.044,+0.016]
+   holdout                                 n=  54 actual R=-0.062  random-entry R=-0.138  ALPHA R=+0.076 [-0.07,+0.23]  alpha ret=+0.0119% [-0.010,+0.034]
+E1b buy the dip, no regime                 n= 540 actual R=-0.133  random-entry R=-0.029  ALPHA R=-0.104 [-0.18,-0.03]  alpha ret=-0.0247% [-0.040,-0.010]
+   design                                  n= 413 actual R=-0.127  random-entry R=-0.001  ALPHA R=-0.125 [-0.22,-0.03]  alpha ret=-0.0314% [-0.050,-0.015]
+   holdout                                 n= 127 actual R=-0.156  random-entry R=-0.120  ALPHA R=-0.035 [-0.14,+0.08]  alpha ret=-0.0028% [-0.021,+0.017]
+E2a VWAP reversion k=1.5                   n=1244 actual R=+0.060  random-entry R=-0.095  ALPHA R=+0.154 [+0.10,+0.22]  alpha ret=+0.0252% [+0.015,+0.037]
+   design                                  n= 811 actual R=-0.009  random-entry R=-0.104  ALPHA R=+0.096 [+0.04,+0.16]  alpha ret=+0.0173% [+0.007,+0.030]
+   holdout                                 n= 433 actual R=+0.188  random-entry R=-0.076  ALPHA R=+0.264 [+0.16,+0.41]  alpha ret=+0.0401% [+0.024,+0.062]
+   absolute result, no null              n=1244 win= 45.5% avgR=+0.060 [-0.01,+0.14] PF=1.12 ret/trade=+0.013%
+E2b VWAP reversion k=1.0                   n=1678 actual R=+0.053  random-entry R=-0.093  ALPHA R=+0.145 [+0.10,+0.20]  alpha ret=+0.0224% [+0.013,+0.034]
+   design                                  n=1102 actual R=+0.016  random-entry R=-0.106  ALPHA R=+0.122 [+0.07,+0.18]  alpha ret=+0.0174% [+0.008,+0.029]
+   holdout                                 n= 576 actual R=+0.123  random-entry R=-0.067  ALPHA R=+0.190 [+0.11,+0.30]  alpha ret=+0.0320% [+0.016,+0.054]
+E3 opening-range breakout                  n= 132 actual R=-0.058  random-entry R=+0.080  ALPHA R=-0.137 [-0.22,-0.06]  alpha ret=-0.0935% [-0.169,-0.024]
+   design                                  n=  96 actual R=-0.045  random-entry R=+0.062  ALPHA R=-0.107 [-0.19,-0.03]  alpha ret=-0.0562% [-0.113,-0.003]
+   holdout                                 n=  36 actual R=-0.092  random-entry R=+0.126  ALPHA R=-0.218 [-0.40,-0.01]  alpha ret=-0.1927% [-0.405,+0.008]
+E4 high-of-day break                       n= 211 actual R=-0.038  random-entry R=+0.217  ALPHA R=-0.255 [-0.31,-0.21]  alpha ret=-0.1775% [-0.212,-0.150]
+   design                                  n= 159 actual R=-0.030  random-entry R=+0.215  ALPHA R=-0.245 [-0.30,-0.21]  alpha ret=-0.1708% [-0.200,-0.145]
+   holdout                                 n=  52 actual R=-0.064  random-entry R=+0.224  ALPHA R=-0.287 [-0.47,-0.19]  alpha ret=-0.1982% [-0.333,-0.128]
+
+====================================================================================================
+5. Do the captured features predict a trigger's R out of sample?  (ridge regression, fit on design, scored on holdout)
+====================================================================================================
+  design n=1670  holdout n=629
+  lambda   CV-corr(blocked)   HOLDOUT corr   spearman   holdout avgR: top-fifth | bottom-fifth of predictions
+      30   +0.024             +0.024         -0.030     -0.215 | -0.224
+     300   +0.048             +0.034         -0.024     -0.156 | -0.260
+    3000   +0.074             +0.040         -0.010     -0.199 | -0.299
+   30000   +0.058             +0.042         +0.002     -0.289 | -0.328
+
+====================================================================================================
+6. Scalp exit rules: 170 pre-defined variants, paired against the spec exits, with White's reality check
+====================================================================================================
+  spec exits: design n=389 ret/trade=+0.0103% win=42.7% avgR=+0.041 PF=1.08 | holdout n=134 ret/trade=-0.0888% win=26.9% avgR=-0.388 PF=0.42
+  top 6 by DESIGN return per trade  [design: ret win avgR PF | holdout: ret win avgR PF]
+   t1=1.0 t2=None frac=1.0 ts=15 be=True  | +0.0239 50.1 +0.032 1.08 | -0.0509 38.8 -0.221 0.60
+   t1=2.0 t2=2.5 frac=0.5 ts=15 be=False | +0.0229 42.9 +0.067 1.14 | -0.0660 30.6 -0.334 0.46
+   t1=2.0 t2=2.5 frac=0.5 ts=15 be=True  | +0.0211 42.9 +0.060 1.13 | -0.0750 30.6 -0.352 0.43
+   t1=1.0 t2=3.5 frac=0.5 ts=15 be=True  | +0.0202 50.1 +0.035 1.09 | -0.0603 38.8 -0.272 0.50
+   t1=1.0 t2=2.5 frac=0.5 ts=15 be=True  | +0.0197 50.1 +0.035 1.08 | -0.0621 38.8 -0.282 0.49
+   t1=1.5 t2=2.5 frac=0.5 ts=15 be=True  | +0.0192 44.7 +0.056 1.12 | -0.0671 33.6 -0.315 0.47
+  better than the spec exits: design 41/170, holdout 108/170, both 37
+  rank correlation of variant performance, design vs holdout: 0.339
+  White reality check on the design period (170 variants): best paired t = 1.56, adjusted p = 0.575
+   1R all-out, 15m time stop    design : paired gain +0.0137% per trade (z=+0.90, n=389)
+   1R all-out, 15m time stop    holdout: paired gain +0.0378% per trade (z=+3.19, n=134)
+   spec but 15m time stop       design : paired gain +0.0090% per trade (z=+1.23, n=389)
+   spec but 15m time stop       holdout: paired gain +0.0217% per trade (z=+3.00, n=134)
+
+====================================================================================================
+7. VWAP-reversion long (buy 1.5 ATR below VWAP after a bounce bar) in the real engine, vs the spec Scalp
+====================================================================================================
+D reversion                              n= 111 win= 41.4% avgR=-0.084 [-0.28,+0.11] PF=0.84 ret/trade=-0.009%
+   design                                n=  76 win= 39.5% avgR=-0.115 [-0.35,+0.12] PF=0.80 ret/trade=-0.001%
+   holdout                               n=  35 win= 45.7% avgR=-0.018 [-0.34,+0.26] PF=0.96 ret/trade=-0.028%
+   return -1.06% | max drawdown 2.82% | trades/day 2.64
+
+====================================================================================================
+8. Symbols never used in any analysis above: ABBV, META
+====================================================================================================
+A pullback trigger (alpha)                 n=  68 actual R=-0.224  random-entry R=-0.016  ALPHA R=-0.208 [-0.39,-0.01]  alpha ret=-0.0492% [-0.110,+0.008]
+E2a VWAP reversion                         n= 152 actual R=+0.196  random-entry R=-0.039  ALPHA R=+0.234 [+0.11,+0.40]  alpha ret=+0.0349% [+0.011,+0.068]
+   absolute result, no null              n= 152 win= 47.4% avgR=+0.196 [+0.04,+0.40] PF=1.43 ret/trade=+0.033%
+E3 opening-range breakout                  n=   7 actual R=-0.256  random-entry R=+0.164  ALPHA R=-0.420 [-0.73,-0.20]  alpha ret=-0.4055% [-0.615,-0.243]
+E4 high-of-day break                       n=  17 actual R=-0.116  random-entry R=+0.203  ALPHA R=-0.319 [-0.48,-0.17]  alpha ret=-0.3070% [-0.521,-0.158]
+engine: spec Scalp A                     n=   1 win=  0.0% avgR=-0.996 [+nan,+nan] PF=0.00 ret/trade=-0.234%
+engine: reversion D                      n=  58 win= 46.6% avgR=+0.224 [-0.11,+0.58] PF=1.47 ret/trade=+0.030%

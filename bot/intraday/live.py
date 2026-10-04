@@ -25,7 +25,7 @@ from .context import DayContext, TickerState
 from .market import US, Market, explain_error
 from .params import SharedParams, apply_overrides
 from .qty import clean
-from .risk import DayRisk, DrawdownGuard, cost_per_share, size_position
+from .risk import DayRisk, DrawdownGuard, cost_per_share, size_position, trade_costs
 from .runner import base_shared, build
 
 BAR_LAG = timedelta(seconds=2)       # wait this long after a minute ends before trusting its bar
@@ -450,7 +450,7 @@ class LiveRunner:
     def _finish_trade(self) -> None:
         pos = self.pos
         gross = sum((e["price"] - pos["entry"]) * e["qty"] for e in pos["exits"])
-        costs = cost_per_share(pos["entry"], self.shared) * pos["shares"]  # ASSUMED; the simulator reports no fees
+        costs = trade_costs(pos["entry"], pos["shares"], self.shared, orders=1 + len(pos["exits"]))  # ASSUMED; the simulator reports no fees
         net = gross - costs
         trade = {"date": pos["entry_day"], "ticker": pos["ticker"], "strategy": pos["strategy"], "mode": "paper",
                  "market": self.market.code,

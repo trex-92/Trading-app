@@ -71,11 +71,15 @@ class Scalp(Strategy):
                 or ctx.ema9_h[-2] is None or ctx.ema20_h[-2] is None):
             return [("warming_up", False)]
         b5, vw = ctx.bars5[-1], ctx.vwap5[-1]
-        return [("close_above_vwap", b5.close > vw), ("vwap_rising", ctx.vwap_rising()),
-                ("ema9_above_ema20", ctx.ema9 > ctx.ema20),
-                ("emas_rising", ctx.ema9 > ctx.ema9_h[-2] and ctx.ema20 > ctx.ema20_h[-2]),
-                ("vwap_crosses_ok", ctx.vwap_crosses() <= self.p.max_vwap_crosses),
-                ("broke_opening_range", any(b.close > ctx.or_high for b in ctx.bars5))]
+        p = self.p
+        checks = [("close_above_vwap", b5.close > vw), ("vwap_rising", ctx.vwap_rising()),
+                  ("ema9_above_ema20", ctx.ema9 > ctx.ema20),
+                  ("emas_rising", ctx.ema9 > ctx.ema9_h[-2] and ctx.ema20 > ctx.ema20_h[-2]),
+                  ("vwap_crosses_ok", ctx.vwap_crosses() <= p.max_vwap_crosses),
+                  ("broke_opening_range", any(b.close > ctx.or_high for b in ctx.bars5))]
+        off = {n for n, required in (("vwap_rising", p.require_vwap_rising), ("emas_rising", p.require_emas_rising),
+                                     ("broke_opening_range", p.require_or_break)) if not required}
+        return [c for c in checks if c[0] not in off]
 
     def regime(self, ctx: DayContext) -> dict | None:
         if not all(ok for _, ok in self._checks(ctx)):
@@ -128,6 +132,10 @@ class Scalp(Strategy):
         r = entry - stop
         if r <= 0 or r / entry * 100 > p.max_stop_pct:
             self.count("rejected_stop_too_wide")
+            if r > 0:
+                over = r / entry * 100 / p.max_stop_pct  # how many times the allowed width
+                self.count("rejected_stop_too_wide_" + ("1_2x" if over <= 1.2 else "1_6x" if over <= 1.6
+                                                         else "2_4x" if over <= 2.4 else "beyond"))
             return None
         t1 = entry + p.t1_r * r
         levels = ctx.key_levels(include_hod=True)
@@ -141,7 +149,7 @@ class Scalp(Strategy):
         t2 = min([entry + p.t2_r * r] + above)  # INTERPRETATION: "if nearer" = nearest of HOD / prior-day high beyond T1
         self.count("signals")
         return Signal(self.name, ctx.ticker, ctx.now, entry, stop, t1, t2,
-                      {**reg, "pullback_n": cur["n"], "pullback_low": lb.low, "levels": levels},
+                      {**reg, "pullback_n": cur["n"], "pullback_low": lb.low, "levels": levels}, t1_frac=p.t1_frac,
                       time_stop_minutes=p.time_stop_minutes, time_stop_always=False,
                       flat_min=ctx.market.total_minutes - p.flat_before_close_min, elapsed=ctx.elapsed)
 

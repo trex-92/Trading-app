@@ -431,3 +431,10 @@ def test_minutes_to_open():
     assert MY.minutes_to_open(at(8, 30)) == 30 and MY.minutes_to_open(at(9, 0)) is None and MY.minutes_to_open(at(13, 0)) is None
     assert MY.minutes_to_open(at(8, 30, 5)) is None                    # Saturday
     assert US.minutes_to_open(datetime(2026, 9, 2, 8, 50, tzinfo=US.tz)) == 40
+
+
+def test_markets_json_can_override_the_fixed_fee_per_order(tmp_path):
+    f = tmp_path / "markets.json"
+    f.write_text(json.dumps({"US": {"cost_per_order": 0.5, "cost_pct_round_trip": 0.04}}))
+    us = get_market("US", f)
+    assert us.cost_per_order == 0.5 and us.cost_pct_round_trip == 0.04

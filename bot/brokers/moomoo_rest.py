@@ -217,6 +217,8 @@ class MoomooRestBroker(Broker):
             store(by_day, last_day - timedelta(days=1))
             cursor = max(last_day, cursor + timedelta(days=1))   # always move forward
             if cursor > end:
+                if len(page) < self.HISTORY_PAGE_CAP:   # not cut off by the page cap: every day up to `end` is complete, save it
+                    store(by_day, end)
                 return rows
         return rows
 

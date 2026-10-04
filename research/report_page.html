@@ -1,0 +1,615 @@
+<title>Day-Trading Strategy Tests</title>
+<style>
+/* Layout concept: a calm single-column desk notebook. The leaderboard leads, a compare chart and the fee table sit under it, the
+   pre-registered test results and the plain-language verdict follow. One accent (blue); profit and loss use the blue/red diverging pair. */
+:root {
+  --bg: #f9f9f7;
+  --surface: #fcfcfb;
+  --ink: #0b0b0b;
+  --ink2: #52514e;
+  --muted: #6f6d68;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11, 11, 11, 0.10);
+  --wash: #f0efec;
+  --accent: #2a78d6;
+  --pos: #2a78d6;
+  --neg: #e34948;
+  --s1: #2a78d6;
+  --s2: #eb6834;
+  --s3: #1baf7a;
+  --s4: #eda100;
+  --good: #0ca30c;
+  --good-text: #006300;
+  --warn: #fab219;
+  --warn-text: #7a5200;
+  --crit: #d03b3b;
+  --crit-text: #a31f1f;
+  --tip: #1b1b1a;
+  --tip-ink: #ffffff;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink2: #c3c2b7; --muted: #a09e97; --grid: #2c2c2a; --axis: #383835;
+    --border: rgba(255, 255, 255, 0.10); --wash: #232322; --accent: #3987e5; --pos: #3987e5; --neg: #e66767;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --good-text: #0ca30c; --warn-text: #fab219; --crit-text: #ec7a7a; --tip: #2c2c2a;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink2: #c3c2b7; --muted: #a09e97; --grid: #2c2c2a; --axis: #383835;
+  --border: rgba(255, 255, 255, 0.10); --wash: #232322; --accent: #3987e5; --pos: #3987e5; --neg: #e66767;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+  --good-text: #0ca30c; --warn-text: #fab219; --crit-text: #ec7a7a; --tip: #2c2c2a;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.5;
+}
+.wrap { max-width: 1120px; margin-inline: auto; padding-inline: 16px; padding-block: 28px 72px; }
+h1 { font-size: 30px; line-height: 1.15; margin: 0 0 8px; letter-spacing: -0.01em; text-wrap: balance; }
+h2 { font-size: 20px; line-height: 1.25; margin: 0 0 6px; text-wrap: balance; }
+h3 { font-size: 15px; line-height: 1.3; margin: 0 0 4px; }
+p { margin: 0 0 10px; max-width: 70ch; }
+.sub { color: var(--ink2); font-size: 15px; max-width: 72ch; margin: 0 0 18px; }
+section { margin-top: 44px; }
+.lede { color: var(--ink2); max-width: 72ch; margin: 0 0 16px; }
+.kicker { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600; margin: 0 0 6px; }
+a { color: var(--accent); }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.92em; background: var(--wash); padding: 1px 5px; border-radius: 4px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+.points { display: grid; gap: 10px; margin: 0 0 6px; padding: 0; list-style: none; }
+.points li { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; display: grid; gap: 2px; }
+.points b { font-size: 15px; }
+.points span { color: var(--ink2); max-width: 78ch; }
+@media (min-width: 860px) { .points { grid-template-columns: 1fr 1fr; } }
+
+/* filters: one row above everything they scope */
+.filters { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: end; margin: 6px 0 14px; }
+.filter { display: grid; gap: 5px; min-width: 0; }
+.filter > .lab { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 2px; gap: 2px; flex-wrap: wrap; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg label { padding: 6px 11px; border-radius: 6px; cursor: pointer; font-size: 13px; color: var(--ink2); white-space: nowrap; }
+.seg label:hover { background: var(--wash); }
+.seg input:checked + label { background: var(--accent); color: #fff; font-weight: 600; }
+.seg input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: 2px; }
+.explain { font-size: 13px; color: var(--ink2); margin: 0 0 12px; max-width: 90ch; }
+.explain b { color: var(--ink); }
+
+/* leaderboard */
+.tablewrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+table.lb { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 900px; font-size: 13px; }
+.lb th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; padding: 10px 8px; border-bottom: 1px solid var(--grid); white-space: nowrap; vertical-align: bottom; }
+.lb th.num, .lb td.num { text-align: right; }
+.lb td { padding: 9px 8px; border-bottom: 1px solid var(--grid); vertical-align: middle; }
+.lb tbody tr:last-child td { border-bottom: 0; }
+.lb tbody tr:hover td { background: var(--wash); }
+.lb td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lb .rank { width: 34px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.lb .name { min-width: 200px; max-width: 250px; }
+.lb .name b { display: block; font-size: 13.5px; }
+.lb .name span { display: block; color: var(--ink2); font-size: 12px; line-height: 1.35; }
+.lb td.sticky, .lb th.sticky { position: sticky; left: 0; background: var(--surface); z-index: 1; }
+.lb tbody tr:hover td.sticky { background: var(--wash); }
+.pbar { display: grid; grid-template-columns: 1fr; gap: 3px; min-width: 150px; }
+.pbar .val { font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; }
+.pbar .track { position: relative; height: 10px; }
+.pbar .zero { position: absolute; top: -2px; bottom: -2px; width: 1px; background: var(--axis); }
+.pbar .bar { position: absolute; top: 0; height: 10px; }
+.pbar .bar.p { background: var(--pos); border-radius: 0 4px 4px 0; }
+.pbar .bar.n { background: var(--neg); border-radius: 4px 0 0 4px; }
+.pos { color: var(--ink); }
+.small { color: var(--muted); font-size: 12px; }
+.chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; line-height: 1.25; padding: 3px 9px 3px 6px; border-radius: 12px; border: 1px solid var(--border); background: var(--wash); color: var(--ink); max-width: 175px; }
+.chip svg { flex: none; }
+.chip.good { color: var(--good-text); } .chip.warn { color: var(--warn-text); } .chip.crit { color: var(--crit-text); } .chip.neutral { color: var(--ink2); }
+.pick { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+.tfoot { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; padding: 10px 12px; border-top: 1px solid var(--grid); font-size: 12.5px; color: var(--ink2); }
+button.btn { font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--ink); cursor: pointer; }
+button.btn:hover { background: var(--wash); }
+button.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.notrades { color: var(--muted); font-size: 12.5px; }
+
+/* chart */
+.chartcard { padding: 14px 14px 10px; }
+.charthead { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 14px; align-items: baseline; margin-bottom: 4px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--ink); margin: 8px 0 2px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { display: inline-block; width: 16px; height: 0; border-top: 2px solid; border-radius: 1px; }
+.chartbox { position: relative; width: 100%; }
+.chartbox svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chartbox text { fill: var(--muted); font-size: 11px; font-family: inherit; }
+.tip { position: absolute; pointer-events: none; background: var(--tip); color: var(--tip-ink); border-radius: 8px; padding: 8px 10px; font-size: 12px; min-width: 150px; max-width: 260px; box-shadow: 0 4px 14px rgba(0,0,0,.22); z-index: 5; }
+.tip .d { color: #c3c2b7; margin-bottom: 4px; font-size: 11.5px; }
+.tip .r { display: flex; align-items: center; gap: 7px; padding: 1px 0; }
+.tip .r i { width: 12px; border-top: 2px solid; flex: none; }
+.tip .r b { margin-left: auto; padding-left: 10px; font-variant-numeric: tabular-nums; }
+.tip .r em { font-style: normal; color: #d8d7cf; overflow-wrap: anywhere; }
+.viewtoggle { font-size: 12.5px; }
+table.mini { border-collapse: collapse; width: 100%; font-size: 12.5px; margin-top: 8px; }
+table.mini th, table.mini td { padding: 6px 8px; border-bottom: 1px solid var(--grid); text-align: right; font-variant-numeric: tabular-nums; }
+table.mini th:first-child, table.mini td:first-child { text-align: left; }
+table.mini th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+/* fee table */
+table.fees { border-collapse: collapse; width: 100%; min-width: 620px; font-size: 13px; }
+.fees th, .fees td { padding: 8px 10px; border-bottom: 1px solid var(--grid); text-align: right; font-variant-numeric: tabular-nums; }
+.fees th:first-child, .fees td:first-child { text-align: left; }
+.fees th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+.fees tr.hot td { background: var(--wash); }
+.fees .meter { display: inline-block; height: 8px; background: var(--neg); border-radius: 0 4px 4px 0; vertical-align: middle; margin-right: 8px; }
+
+/* result tables */
+table.res { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 13px; }
+.res th, .res td { padding: 9px 10px; border-bottom: 1px solid var(--grid); text-align: left; vertical-align: top; }
+.res th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; white-space: nowrap; }
+.res td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.res tr:last-child td { border-bottom: 0; }
+.cols2 { display: grid; gap: 14px; }
+@media (min-width: 860px) { .cols2 { grid-template-columns: 1fr 1fr; } }
+.boxlist { margin: 0; padding-left: 18px; color: var(--ink2); }
+.boxlist li { margin: 0 0 6px; max-width: 76ch; }
+.boxlist b { color: var(--ink); }
+.note { font-size: 12.5px; color: var(--muted); max-width: 90ch; }
+footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--grid); font-size: 12.5px; color: var(--muted); }
+@media (max-width: 899px) {
+  .tablewrap.lbwrap { overflow-x: visible; border: 0; background: transparent; }
+  table.lb, .lb tbody, .lb caption { display: block; min-width: 0; width: 100%; }
+  .lb thead { display: none; }
+  .lb tbody tr { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; padding: 12px 14px; margin-bottom: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+  .lb td { display: block; border: 0; padding: 0; min-width: 0; text-align: left !important; }
+  .lb td[data-label]::before { content: attr(data-label); display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; margin-bottom: 2px; }
+  .lb td.rank { display: none; }
+  .lb td.sticky { position: static; background: transparent; }
+  .lb td.name, .lb td.profitcell, .lb td.evcell, .lb td.wide { grid-column: 1 / -1; }
+  .lb td.name b { font-size: 15px; }
+  .lb td.name b::before { content: attr(data-rank) ". "; color: var(--muted); font-weight: 600; }
+  .lb tbody tr:hover td, .lb tbody tr:hover td.sticky { background: transparent; }
+  .lb td.cmp { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; }
+  .lb td.cmp::before { margin: 0; }
+  .lb .tfoot { border-top: 0; padding-inline: 0; }
+  .lb caption { padding: 0 0 8px !important; }
+  .tablewrap.lbwrap .tfoot { border: 0; padding-inline: 0; }
+}
+@media (prefers-reduced-motion: no-preference) { .pbar .bar { transition: width .25s ease; } }
+</style>
+
+<div class="wrap">
+  <p class="kicker">Research report · October 2026</p>
+  <h1>Day-Trading Strategy Tests</h1>
+  <p class="sub">Nineteen strategies run over 189 trading days of 1-minute data (2 Jan to 2 Oct 2026) for 11 US stocks and ETFs, with Moomoo's real US fees: 0.03% commission on each order plus $0.99 per order. Every number comes from the repo's own backtester.</p>
+
+  <ul class="points" id="points"></ul>
+
+  <section id="board">
+    <p class="kicker">Leaderboard</p>
+    <h2>Top 10 strategies by profit</h2>
+    <p class="lede">Profit is the total over the period as a percentage of the starting account, with every trade all-in at 1× the account. Each strategy was run 30 times with the stock list in random order, because ties between simultaneous signals are broken by list order, and the table shows the average.</p>
+
+    <div class="filters" role="group" aria-label="Filters for the leaderboard and chart">
+      <div class="filter"><span class="lab" id="lab-size">Account size</span>
+        <div class="seg" role="radiogroup" aria-labelledby="lab-size" id="seg-size"></div></div>
+      <div class="filter"><span class="lab" id="lab-rule">Your fee rule</span>
+        <div class="seg" role="radiogroup" aria-labelledby="lab-rule" id="seg-rule"></div></div>
+      <div class="filter"><span class="lab" id="lab-rank">Rank by</span>
+        <div class="seg" role="radiogroup" aria-labelledby="lab-rank" id="seg-rank"></div></div>
+    </div>
+    <p class="explain" id="explain"></p>
+
+    <div class="tablewrap lbwrap">
+      <table class="lb" id="lb">
+        <caption class="small" style="text-align:left;padding:10px 12px 0;caption-side:top" id="lbcap"></caption>
+        <thead><tr>
+          <th class="sticky rank">#</th><th class="sticky name" style="left:34px">Strategy</th>
+          <th id="th-profit">Profit</th><th class="num">Trades</th><th class="num">Win rate</th>
+          <th class="num" id="th-final" title="Profit from 3 Aug to 2 Oct 2026, the locked test period">Locked test</th><th>Equity curve</th><th>Verdict</th><th title="Tick up to four strategies to draw them in the chart below">Plot</th>
+        </tr></thead>
+        <tbody id="lbody"></tbody>
+      </table>
+      <div class="tfoot"><span id="tcount"></span><button class="btn" id="toggleall" type="button"></button></div>
+    </div>
+    <p class="note" style="margin-top:8px" id="bench"></p>
+    <p class="note" style="margin-top:4px">Equity curves: grey is the tuning period (Jan to Jul), blue is the locked test (Aug to Oct). Most formulas were tuned on Jan to Jul, so their profit there is optimistic; Aug to Oct is the fair column for them. The three original strategies were not tuned on this data.</p>
+  </section>
+
+  <section id="compare">
+    <p class="kicker">Compare</p>
+    <h2>Cumulative profit over time</h2>
+    <p class="lede">Tick up to four strategies in the table. The chart follows the account size and fee rule above.</p>
+    <div class="card chartcard">
+      <div class="charthead"><h3 id="charttitle">Cumulative profit</h3>
+        <button class="btn viewtoggle" id="viewtoggle" type="button" aria-pressed="false">Show as table</button></div>
+      <div class="legend" id="legend"></div>
+      <div class="chartbox" id="chartbox"><div class="tip" id="tip" hidden></div></div>
+      <div id="charttable" hidden></div>
+    </div>
+  </section>
+
+  <section id="fees">
+    <p class="kicker">Costs</p>
+    <h2>What Moomoo's fees do to one trade</h2>
+    <p class="lede">The $0.99 platform fee is charged per order, so it does not shrink when the trade does. A round trip is at least two orders, and three when half the position is sold at the first target.</p>
+    <div class="tablewrap card"><table class="fees" id="feetable"></table></div>
+    <p class="note" style="margin-top:8px">Not included: exchange and regulatory fees (SEC, TAF, settlement), which are small next to these, and currency conversion if the account is not in USD. The minimum commission of $0.01 per order never applies at these sizes.</p>
+  </section>
+
+  <section id="tests">
+    <p class="kicker">Pre-registered tests</p>
+    <h2>What held up on data the strategies had never seen</h2>
+    <p class="lede">Both rounds were written down in the repo before the data that judges them was looked at. These tests were run with an earlier cost placeholder of $0.02 per share, before Moomoo's real fees were supplied, so read them as a comparison of ideas, not of profit.</p>
+
+    <h3>Round 1: the original strategies and their variants, tested on 145 new days (Jan to Jul)</h3>
+    <div class="tablewrap card"><table class="res">
+      <thead><tr><th>Claim from the earlier Aug–Oct work</th><th>Result on Jan–Jul</th><th>Verdict</th></tr></thead>
+      <tbody id="round1"></tbody></table></div>
+
+    <h3 style="margin-top:22px">Round 2: gap fill, gap and go, relative strength, last hour</h3>
+    <p class="lede" style="margin-bottom:10px">Parameters and extra signals were tuned on Jan to Jul using nine symbols (1,239 variants tried), then each frozen formula was run once on the locked period, 3 Aug to 2 Oct, with all 11 symbols. The bar: at least 20 trades, a 95% interval for the return per trade entirely above zero, win rate at least 45%, profit factor at least 1.3.</p>
+    <div class="tablewrap card"><table class="res">
+      <thead><tr><th>Formula</th><th class="num">Tuning period: trades · win · return per trade</th><th class="num">Locked period: trades · win · return per trade [95% interval] · profit factor</th><th>Result</th></tr></thead>
+      <tbody id="round2"></tbody></table></div>
+  </section>
+
+  <section id="gapfill">
+    <p class="kicker">The one that survived</p>
+    <h2>Gap fill, in plain words</h2>
+    <p class="lede">When a stock opens 1 to 4% below yesterday's close, buy it between about 10:30 and 11:45 with no further confirmation. The high-win-rate version puts a stop 2.5 five-minute ATRs below entry, sells half halfway back to yesterday's close and the rest at it, and is out by 13:30. The profit version puts the stop just under the day's low and sells everything at yesterday's close.</p>
+    <div class="cols2">
+      <div class="card" style="padding:14px"><h3>What speaks for it</h3>
+        <ul class="boxlist">
+          <li><b>It met the pre-registered bar</b> on the locked period: 35 trades, 71% win rate, +0.24% per trade (interval +0.08% to +0.43%), profit factor 2.8.</li>
+          <li><b>A smooth neighbourhood.</b> All eight nearby parameter settings were positive on the locked period (+0.07% to +0.30%).</li>
+          <li><b>Held up on the same nine stocks later:</b> +0.30% and +0.20% per trade for the two versions.</li>
+          <li><b>In the real engine</b> the high-win-rate version made about 19 trades with a 69% win rate and profit factor 3.2.</li>
+        </ul></div>
+      <div class="card" style="padding:14px"><h3>What speaks against it</h3>
+        <ul class="boxlist">
+          <li><b>The two stocks left out of tuning</b> (META, ABBV) were negative from Jan to Jul: −0.07% and −0.26% per trade over about 20 trades each.</li>
+          <li><b>Pooling all data never used for tuning</b> gives +0.14% (profit version) and +0.05% (high-win-rate version) per trade, with intervals that include zero.</li>
+          <li><b>Some months lost money</b>: the high-win-rate version lost in January and June.</li>
+          <li><b>1,239 variants were searched</b> and ten formulas tested at the end, so one pass is weak evidence. Only paper trading can settle it.</li>
+        </ul></div>
+    </div>
+  </section>
+
+  <section id="next">
+    <p class="kicker">Where this leaves you</p>
+    <h2>What to do next</h2>
+    <ul class="boxlist" id="nextlist"></ul>
+  </section>
+
+  <section id="how">
+    <p class="kicker">Method</p>
+    <h2>How the numbers were made, and their limits</h2>
+    <div class="cols2">
+      <div><h3>Method</h3>
+        <ul class="boxlist">
+          <li>The same backtester the bot uses: one position at a time, at most 3 trades a day, the daily-loss limit, the drawdown breakers, next-bar limit-order fills, the stop assumed first when a bar touches both stop and target.</li>
+          <li>A simulator for individual trades, checked against the engine with zero mismatches on every strategy family and exit style.</li>
+          <li>Ideas were judged against random entries on the same stock and day, which removes the market's drift.</li>
+          <li>Tuning data, a locked final period and two held-out stocks were kept apart, every variant tried was counted, and White's reality check was applied.</li>
+        </ul></div>
+      <div><h3>Limits</h3>
+        <ul class="boxlist">
+          <li>The market itself changed character through the year (a March selloff, strong April and May, a June pullback), and no single month is typical.</li>
+          <li>The formulas were tuned under the earlier $0.02-per-share placeholder, not Moomoo's fees. With the real fees, tight stops cost more and a re-tune would favour wider stops.</li>
+          <li>No event calendar (FOMC, CPI, half days), no spread beyond the fees, and fractional shares are assumed to be available.</li>
+          <li>Tens of trades prove little: confirming a real +0.1% edge per trade takes on the order of a thousand.</li>
+        </ul></div>
+    </div>
+    <footer>Code, pre-registrations and full outputs live in the repo under <code>research/</code>, with the written report in <code>docs/strategy-search-2026-10.md</code>. This is research, not investment advice.</footer>
+  </section>
+</div>
+
+<script>
+const D = /*__DATA__*/null;
+const $ = (id) => document.getElementById(id);
+const NS = 'http://www.w3.org/2000/svg';
+const MAXCMP = 4;
+
+/* ---------- what each strategy's pre-registered tests concluded (icon + label, never colour alone) ---------- */
+const VERDICT = {
+  'A': ['crit', 'Not profitable in the Jan–Jul test'], 'B': ['warn', 'Positive but not significant (Jan–Jul)'], 'C': ['crit', 'Loses (Jan–Jul test)'],
+  'D15': ['crit', 'Loses (Jan–Jul test)'], 'D20': ['neutral', 'About zero (Jan–Jul test)'],
+  'GF-W': ['good', 'Met the locked test'], 'GF-core': ['warn', 'Borderline in the locked test'], 'GF-E': ['neutral', 'Too few trades to judge'],
+  'GG-core': ['crit', 'Failed the locked test'], 'GG-E': ['crit', 'Failed the locked test'], 'GG-W': ['neutral', 'Too few trades to judge'],
+  'RS-core': ['crit', 'Failed: significantly negative'], 'RS-E': ['crit', 'Failed the locked test'],
+  'LH-core': ['crit', 'Failed the locked test'], 'LH-E': ['crit', 'Failed the locked test'],
+  'ref-GF-plain': ['neutral', 'Plain idea, untuned'], 'ref-GG-plain': ['neutral', 'Plain idea, untuned'], 'ref-RS-plain': ['neutral', 'Plain idea, untuned'], 'ref-LH-momentum': ['neutral', 'Plain idea, untuned']
+};
+const ICON = {
+  good: '<svg width="13" height="13" viewBox="0 0 13 13" aria-hidden="true"><circle cx="6.5" cy="6.5" r="6" fill="var(--good)"/><path d="M3.6 6.7l2 2 3.8-4" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  warn: '<svg width="13" height="13" viewBox="0 0 13 13" aria-hidden="true"><path d="M6.5 .8l6 10.7H.5z" fill="var(--warn)"/><path d="M6.5 4.8v3M6.5 9.4v.1" stroke="#1b1b1a" stroke-width="1.5" stroke-linecap="round"/></svg>',
+  crit: '<svg width="13" height="13" viewBox="0 0 13 13" aria-hidden="true"><circle cx="6.5" cy="6.5" r="6" fill="var(--crit)"/><path d="M4.2 4.2l4.6 4.6M8.8 4.2L4.2 8.8" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  neutral: '<svg width="13" height="13" viewBox="0 0 13 13" aria-hidden="true"><circle cx="6.5" cy="6.5" r="5.5" fill="none" stroke="var(--muted)" stroke-width="1.4"/><path d="M4 6.5h5" stroke="var(--muted)" stroke-width="1.4" stroke-linecap="round"/></svg>'
+};
+
+const state = { size: D.budgets.includes(10000) ? 10000 : D.budgets[0], rule: 'on', rank: 'ret', all: false, sel: [], slot: {}, table: false };
+const key = () => `${state.size}_${state.rule}`;
+const V = (s) => s.views[key()];
+const fmtPct = (x, d = 2) => (x > 0.0049 ? '+' : x < -0.0049 ? '−' : '') + Math.abs(x).toFixed(d) + '%';
+const fmtN = (x) => (x >= 100 ? Math.round(x).toString() : x.toFixed(x < 10 && x % 1 ? 1 : 0));
+const money = (x) => '$' + x.toLocaleString('en-US');
+const dateLabel = (iso) => new Date(iso + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+function el(tag, attrs, text) {
+  const e = document.createElement(tag);
+  for (const k in attrs || {}) e.setAttribute(k, attrs[k]);
+  if (text != null) e.textContent = text;
+  return e;
+}
+function svg(tag, attrs) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs || {}) e.setAttribute(k, attrs[k]);
+  return e;
+}
+
+/* ---------- filters ---------- */
+function segment(host, name, options, current, onChange) {
+  host.textContent = '';
+  options.forEach(([val, label], i) => {
+    const id = `${name}-${i}`;
+    const input = el('input', { type: 'radio', name, id, value: String(val) });
+    if (String(val) === String(current)) input.checked = true;
+    input.addEventListener('change', () => onChange(val));
+    host.append(input, el('label', { for: id }, label));
+  });
+}
+function buildFilters() {
+  segment($('seg-size'), 'size', D.budgets.map((b) => [b, money(b)]), state.size, (v) => { state.size = Number(v); render(); });
+  segment($('seg-rule'), 'rule', [['on', 'On (skip trades)'], ['off', 'Off (take every signal)']], state.rule, (v) => { state.rule = v; render(); });
+  segment($('seg-rank'), 'rank', [['ret', 'Profit, whole period'], ['final', 'Profit, locked test'], ['trades', 'Trades executed']], state.rank, (v) => { state.rank = v; render(); });
+}
+
+/* ---------- ranking ---------- */
+function ranked() {
+  const f = { ret: (s) => V(s).ret, final: (s) => V(s).ret_final, trades: (s) => V(s).trades }[state.rank];
+  return D.strategies.slice().sort((a, b) => f(b) - f(a) || V(b).trades - V(a).trades);
+}
+
+function sparkline(s) {
+  const c = V(s).cum, i0 = D.dates.indexOf(D.period.final_start) >= 0 ? D.dates.indexOf(D.period.final_start) : D.dates.findIndex((d) => d >= D.period.final_start);
+  const W = 124, H = 30, pad = 4;
+  const lo = Math.min(0, ...c), hi = Math.max(0, ...c), span = hi - lo || 1;
+  const x = (i) => pad + (i / (c.length - 1)) * (W - 2 * pad - 6), y = (v) => H - pad - ((v - lo) / span) * (H - 2 * pad);
+  const root = svg('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': `Cumulative profit ${fmtPct(c[c.length - 1])}` });
+  root.append(svg('line', { x1: pad, x2: W - pad - 6, y1: y(0), y2: y(0), stroke: 'var(--grid)', 'stroke-width': 1 }));
+  const path = (from, to, color) => {
+    let d = '';
+    for (let i = from; i <= to; i++) d += (i === from ? 'M' : 'L') + x(i).toFixed(1) + ' ' + y(c[i]).toFixed(1);
+    root.append(svg('path', { d, fill: 'none', stroke: color, 'stroke-width': 1.6, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+  };
+  path(0, Math.max(i0, 1), 'var(--axis)');
+  path(Math.max(i0, 1) - 0, c.length - 1, 'var(--accent)');
+  const e = svg('circle', { cx: x(c.length - 1), cy: y(c[c.length - 1]), r: 3.2, fill: 'var(--accent)', stroke: 'var(--surface)', 'stroke-width': 2 });
+  root.append(e);
+  return root;
+}
+
+function pbar(val, scale) {
+  const wrap = el('div', { class: 'pbar' });
+  const v = el('span', { class: 'val' }, fmtPct(val));
+  const track = el('div', { class: 'track' });
+  const half = 50;                                       // percent of the track on each side of zero
+  const w = Math.min(half, Math.abs(val) / scale * half);
+  track.append(el('i', { class: 'zero', style: `left:${half}%` }));
+  const bar = el('i', { class: 'bar ' + (val >= 0 ? 'p' : 'n'), style: val >= 0 ? `left:${half}%;width:${w}%` : `left:${half - w}%;width:${w}%` });
+  if (Math.abs(val) < 0.005) bar.style.display = 'none';
+  track.append(bar);
+  wrap.append(v, track);
+  return wrap;
+}
+
+function renderTable() {
+  const list = ranked(), shown = state.all ? list : list.slice(0, 10);
+  const scale = Math.max(0.5, ...shown.map((s) => Math.abs(V(s).ret)));
+  const body = $('lbody');
+  body.textContent = '';
+  shown.forEach((s, i) => {
+    const v = V(s), tr = el('tr');
+    const verdict = VERDICT[s.id] || ['neutral', ''];
+    tr.append(el('td', { class: 'sticky rank' }, String(list.indexOf(s) + 1)));
+    const name = el('td', { class: 'sticky name', style: 'left:34px' });
+    name.append(el('b', { 'data-rank': String(list.indexOf(s) + 1) }, s.name), el('span', {}, s.desc));
+    tr.append(name);
+    const pc = el('td', { class: 'profitcell', 'data-label': state.rank === 'final' ? 'Profit, locked test' : 'Profit, whole period' }); pc.append(pbar(state.rank === 'final' ? v.ret_final : v.ret, state.rank === 'final' ? Math.max(0.5, ...shown.map((q) => Math.abs(V(q).ret_final))) : scale)); tr.append(pc);
+    if (v.trades < 0.5) {
+      const c = el('td', { colspan: '2', class: 'wide' }); c.append(el('span', { class: 'notrades' }, 'No trades: fees exceed 10% of the risk on every signal at this account size.')); tr.append(c);
+    } else {
+      const two = (main, sub, label) => { const td = el('td', { class: 'num', 'data-label': label }); td.append(document.createTextNode(main), el('br'), el('span', { class: 'small' }, sub)); return td; };
+      tr.append(two(fmtN(v.trades), 'fees paid ' + v.fees.toFixed(1) + '%', 'Trades executed'),
+        two(v.win.toFixed(0) + '%', 'profit factor ' + (v.pf >= 9.95 ? '>9.9' : v.pf.toFixed(2)), 'Win rate'));
+      pc.title = 'Worst drop from a peak: −' + v.dd.toFixed(1) + '%';
+    }
+    const fin = el('td', { class: 'num', 'data-label': 'Aug–Oct (locked test)' });
+    fin.append(document.createTextNode(fmtPct(v.ret_final)), el('br'), el('span', { class: 'small' }, v.trades_final < 0.5 ? 'no trades' : fmtN(v.trades_final) + ' trades'));
+    tr.append(fin);
+    const sp = el('td', { 'data-label': 'Equity curve' }); sp.append(sparkline(s)); tr.append(sp);
+    const ev = el('td', { class: 'evcell', 'data-label': 'What the tests say' }); const chip = el('span', { class: 'chip ' + verdict[0] }); chip.insertAdjacentHTML('afterbegin', ICON[verdict[0]]); chip.append(document.createTextNode(verdict[1])); ev.append(chip); tr.append(ev);
+    const pk = el('td', { class: 'cmp', 'data-label': 'Compare' }); const cb = el('input', { type: 'checkbox', class: 'pick', 'aria-label': 'Compare ' + s.name }); cb.checked = state.sel.includes(s.id);
+    cb.addEventListener('change', () => toggleSel(s.id, cb.checked)); pk.append(cb); tr.append(pk);
+    body.append(tr);
+  });
+  $('tcount').textContent = `Showing ${shown.length} of ${list.length} strategies`;
+  const tg = $('toggleall'); tg.textContent = state.all ? 'Show top 10 only' : `Show all ${list.length}`;
+  $('th-profit').textContent = state.rank === 'final' ? 'Profit, locked test' : 'Profit, whole period';
+  $('lbcap').textContent = `Account ${money(state.size)} · fee rule ${state.rule === 'on' ? 'on' : 'off'} · ranked by ${{ ret: 'whole-period profit', final: 'locked-test profit', trades: 'trades executed' }[state.rank]}`;
+}
+
+function explain() {
+  const e = $('explain'), r = state.rule === 'on';
+  e.textContent = '';
+  const b = (t) => el('b', {}, t);
+  e.append(b('Your fee rule: '), document.createTextNode(r
+    ? `skip a trade when fees would exceed 10% of what the stop risks. At ${money(state.size)} the fees on a round trip are about ${(0.06 + 2 * 0.99 / state.size * 100).toFixed(2)}% of the trade, so only stops wider than about ${((0.06 + 2 * 0.99 / state.size * 100) * 10).toFixed(1)}% pass.`
+    : `ignore the rule and take every signal, paying the fees on all of them (about ${(0.06 + 2 * 0.99 / state.size * 100).toFixed(2)}% of the trade per round trip at ${money(state.size)}).`));
+}
+
+function toggleSel(id, on) {
+  if (on) {
+    if (state.sel.length >= MAXCMP) { renderTable(); return; }
+    state.sel.push(id);
+    for (let s = 1; s <= MAXCMP; s++) if (!Object.values(state.slot).includes(s)) { state.slot[id] = s; break; }
+  } else {
+    state.sel = state.sel.filter((x) => x !== id); delete state.slot[id];
+  }
+  renderChart();
+}
+
+/* ---------- compare chart ---------- */
+function niceTicks(lo, hi, n = 5) {
+  const span = hi - lo || 1, raw = span / n, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= raw) || raw;
+  const t = []; for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) t.push(Math.round(v / step) * step);
+  return { ticks: t, step };
+}
+function renderChart() {
+  const sel = state.sel.map((id) => D.strategies.find((s) => s.id === id)).filter(Boolean);
+  $('charttitle').textContent = `Cumulative profit · account ${money(state.size)} · fee rule ${state.rule}`;
+  const lg = $('legend'); lg.textContent = '';
+  sel.forEach((s) => { const sp = el('span'); const i = el('i'); i.style.borderColor = `var(--s${state.slot[s.id]})`; sp.append(i, document.createTextNode(s.name)); lg.append(sp); });
+  const host = $('chartbox'); [...host.querySelectorAll('svg')].forEach((n) => n.remove());
+  const tbl = $('charttable'); tbl.textContent = '';
+  if (!sel.length) { const p = el('p', { class: 'small', style: 'padding:30px 0;text-align:center' }, 'Tick one to four strategies in the table above to draw them here.'); p.className = 'small'; $('tip').hidden = true; host.querySelectorAll('p').forEach((n) => n.remove()); host.append(p); return; }
+  host.querySelectorAll('p').forEach((n) => n.remove());
+  const W = Math.max(320, host.clientWidth || 800), H = Math.min(420, Math.max(250, W * 0.42)), m = { l: 46, r: 12, t: 14, b: 26 };
+  const series = sel.map((s) => ({ s, c: V(s).cum }));
+  const all = series.flatMap((q) => q.c).concat(0);
+  let lo = Math.min(...all), hi = Math.max(...all); const pad = (hi - lo) * 0.06 || 0.5; lo -= pad; hi += pad;
+  const { ticks } = niceTicks(lo, hi);
+  const n = D.dates.length, x = (i) => m.l + (i / (n - 1)) * (W - m.l - m.r), y = (v) => m.t + (1 - (v - lo) / (hi - lo)) * (H - m.t - m.b);
+  const root = svg('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Cumulative profit of the selected strategies over time' });
+  const fi = D.dates.findIndex((d) => d >= D.period.final_start);
+  root.append(svg('rect', { x: x(fi), y: m.t, width: W - m.r - x(fi), height: H - m.t - m.b, fill: 'var(--wash)', opacity: 0.8 }));
+  ticks.forEach((t) => {
+    root.append(svg('line', { x1: m.l, x2: W - m.r, y1: y(t), y2: y(t), stroke: t === 0 ? 'var(--axis)' : 'var(--grid)', 'stroke-width': 1 }));
+    const tx = svg('text', { x: m.l - 6, y: y(t) + 4, 'text-anchor': 'end' }); tx.textContent = (t > 0 ? '+' : t < 0 ? '−' : '') + Math.abs(t).toLocaleString('en-US') + '%'; root.append(tx);
+  });
+  let lastM = '';
+  D.dates.forEach((d, i) => { const mo = d.slice(0, 7); if (mo !== lastM && d.slice(8) <= '07' ) { lastM = mo; const tx = svg('text', { x: x(i), y: H - 6, 'text-anchor': 'middle' }); tx.textContent = new Date(d + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' }); root.append(tx); } });
+  const lab1 = svg('text', { x: m.l + 6, y: m.t + 12 }); lab1.textContent = 'tuning period'; root.append(lab1);
+  const lab2 = svg('text', { x: x(fi) + 6, y: m.t + 12 }); lab2.textContent = 'locked test'; root.append(lab2);
+  series.forEach((q) => {
+    let d = ''; q.c.forEach((v, i) => { d += (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1); });
+    root.append(svg('path', { d, fill: 'none', stroke: `var(--s${state.slot[q.s.id]})`, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+    const last = q.c[q.c.length - 1];
+    root.append(svg('circle', { cx: x(n - 1), cy: y(last), r: 4, fill: `var(--s${state.slot[q.s.id]})`, stroke: 'var(--surface)', 'stroke-width': 2 }));
+  });
+  /* direct end labels, only where they do not collide (the legend and tooltip carry the rest) */
+  const ends = series.map((q) => ({ q, yy: y(q.c[q.c.length - 1]) })).sort((a, b) => a.yy - b.yy);
+  const clear = ends.every((e, i) => i === 0 || e.yy - ends[i - 1].yy >= 15);
+  if (clear) ends.forEach((e) => { const tx = svg('text', { x: W - m.r - 10, y: e.yy - 8, 'text-anchor': 'end' }); tx.style.fill = 'var(--ink)'; tx.style.fontWeight = '600'; tx.textContent = fmtPct(e.q.c[e.q.c.length - 1]); root.append(tx); });
+  const cross = svg('line', { y1: m.t, y2: H - m.b, stroke: 'var(--muted)', 'stroke-width': 1, visibility: 'hidden' }); root.append(cross);
+  const dots = series.map((q) => { const c = svg('circle', { r: 4.5, fill: `var(--s${state.slot[q.s.id]})`, stroke: 'var(--surface)', 'stroke-width': 2, visibility: 'hidden' }); root.append(c); return c; });
+  const hit = svg('rect', { x: m.l, y: m.t, width: W - m.l - m.r, height: H - m.t - m.b, fill: 'transparent', tabindex: '0' }); root.append(hit);
+  const tip = $('tip');
+  function show(i) {
+    i = Math.max(0, Math.min(n - 1, i));
+    cross.setAttribute('x1', x(i)); cross.setAttribute('x2', x(i)); cross.setAttribute('visibility', 'visible');
+    tip.textContent = '';
+    tip.append(el('div', { class: 'd' }, new Date(D.dates[i] + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })));
+    series.forEach((q, k) => {
+      dots[k].setAttribute('cx', x(i)); dots[k].setAttribute('cy', y(q.c[i])); dots[k].setAttribute('visibility', 'visible');
+      const r = el('div', { class: 'r' }); const sw = el('i'); sw.style.borderColor = `var(--s${state.slot[q.s.id]})`;
+      r.append(sw, el('em', {}, q.s.name), el('b', {}, fmtPct(q.c[i]))); tip.append(r);
+    });
+    tip.hidden = false;
+    const left = Math.min(Math.max(8, x(i) * (host.clientWidth / W) + 14), host.clientWidth - tip.offsetWidth - 6);
+    tip.style.left = left + 'px'; tip.style.top = '8px';
+  }
+  const idxAt = (ev) => { const r = root.getBoundingClientRect(); return Math.round(((ev.clientX - r.left) / r.width * W - m.l) / (W - m.l - m.r) * (n - 1)); };
+  hit.addEventListener('pointermove', (ev) => show(idxAt(ev)));
+  hit.addEventListener('pointerleave', () => { tip.hidden = true; cross.setAttribute('visibility', 'hidden'); dots.forEach((d) => d.setAttribute('visibility', 'hidden')); });
+  hit.addEventListener('focus', () => show(n - 1));
+  hit.addEventListener('keydown', (ev) => { if (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') { ev.preventDefault(); hit._i = (hit._i ?? n - 1) + (ev.key === 'ArrowLeft' ? -5 : 5); hit._i = Math.max(0, Math.min(n - 1, hit._i)); show(hit._i); } });
+  host.append(root);
+  /* table twin: values at the end of each month and at the end of the data */
+  const idx = []; let pm = ''; D.dates.forEach((d, i) => { const mo = d.slice(0, 7); if (pm && mo !== pm) idx.push(i - 1); pm = mo; }); idx.push(n - 1);
+  const t = el('table', { class: 'mini' }); const hr = el('tr'); hr.append(el('th', {}, 'Strategy')); idx.forEach((i) => hr.append(el('th', {}, dateLabel(D.dates[i])))); t.append(el('thead')); t.firstChild.append(hr);
+  const tb = el('tbody'); series.forEach((q) => { const r = el('tr'); r.append(el('td', {}, q.s.name)); idx.forEach((i) => r.append(el('td', {}, fmtPct(q.c[i])))); tb.append(r); }); t.append(tb); tbl.append(t);
+  tbl.hidden = !state.table; host.hidden = state.table; lg.hidden = state.table;
+}
+
+/* ---------- fee table ---------- */
+function renderFees() {
+  const sizes = [100, 500, 1000, 5000, 10000, 50000, 100000], t = $('feetable');
+  const hr = el('tr'); ['Trade size', 'Commission 0.06%', 'Platform fees, 2 orders', 'Round trip, % of the trade', 'With a half-off exit (3 orders)'].forEach((h) => hr.append(el('th', {}, h)));
+  const th = el('thead'); th.append(hr); const tb = el('tbody');
+  const peak = (0.06 + 2 * 0.99 / 100 * 100);
+  sizes.forEach((s) => {
+    const c = s * 0.0006, f2 = 1.98, tot = c + f2, p2 = tot / s * 100, p3 = (c + 2.97) / s * 100;
+    const tr = el('tr', s <= 1000 ? { class: 'hot' } : {});
+    tr.append(el('td', {}, money(s)), el('td', {}, '$' + c.toFixed(2)), el('td', {}, '$' + f2.toFixed(2)));
+    const td = el('td'); const m = el('i', { class: 'meter', style: `width:${Math.max(3, Math.min(120, p2 / peak * 120))}px` }); td.append(m, document.createTextNode(p2.toFixed(2) + '%')); tr.append(td);
+    tr.append(el('td', {}, p3.toFixed(2) + '%')); tb.append(tr);
+  });
+  t.append(th, tb);
+}
+
+/* ---------- static result tables ---------- */
+const ROUND1 = [
+  ['Spec Scalp is not demonstrably profitable', '32 trades, −0.11R, profit factor 0.81, −1.3%', ['crit', 'Holds. The earlier +0.69R over 6 trades was luck']],
+  ['Trend about zero, Range negative', 'Trend: 105 trades, +0.12R, PF 1.37, +5.6%, second half negative. Range: −0.13R', ['warn', 'Trend positive but not significant; Range loses']],
+  ['Buying strength does worse than random entries', 'Scalp trigger −0.06R, opening-range breakout −0.09R, high-of-day break −0.21R, Trend pullback −0.10R; every interval below zero', ['good', 'Confirmed']],
+  ['An oversold bounce beats random entries', 'Alpha +0.15R (VWAP depth), +0.28R (RSI), +0.34R (Bollinger)', ['good', 'Confirmed as alpha']],
+  ['…and it makes money in absolute terms', '−0.04R over 5,419 trades (RSI −0.03R, Bollinger +0.02R)', ['crit', 'Not confirmed']],
+  ['Reversion in the engine at 2.0 ATR was positive', '369 trades, +0.05R, PF 1.09, +1.4% (orderings −2.1% to +6.0%). At 1.5 ATR: −8%', ['neutral', 'Shrank to about zero']],
+  ['Deeper below VWAP is better', 'Rank correlation −0.002', ['crit', 'Not confirmed']],
+  ['Taking everything off at 1R and cutting after 15 minutes improves returns', 'Paired gain −0.004% per trade (win rate does rise, 41.6% to 48.1%)', ['crit', 'Not confirmed']]
+];
+const ROUND2 = [
+  ['GF-core · gap fill, profit version', '122 · 47% · +0.19%', '35 · 51% · +0.25% [−0.00, +0.52] · 1.87', ['warn', 'Borderline']],
+  ['GF-E · gap fill with extra signals', '60 · 53% · +0.39%', '9 · 33% · +0.33%', ['neutral', 'Too few trades']],
+  ['GF-W · gap fill, high-win-rate version', '125 · 61% · +0.15%', '35 · 71% · +0.24% [+0.08, +0.43] · 2.83', ['good', 'Met the bar']],
+  ['GG-core · gap and go', '148 · 60% · +0.20%', '53 · 40% · −0.03% [−0.24, +0.18] · 1.26', ['crit', 'Failed']],
+  ['GG-E, GG-W · gap and go variants', '75 · 61% and 50 · 66%', '26 · 38% · −0.04% and 13 · 69% · +0.29%', ['crit', 'Failed / too few']],
+  ['RS-core · relative strength vs SPY', '220 · 52% · +0.12%', '97 · 33% · −0.13% [−0.23, −0.01] · 0.64', ['crit', 'Failed, significantly negative']],
+  ['RS-E · relative strength, weak market', '64 · 61% · +0.26%', '39 · 33% · −0.12%', ['crit', 'Failed']],
+  ['LH-core · last-hour oversold bounce', '264 · 61% · +0.08%', '91 · 36% · −0.02%', ['crit', 'Failed']],
+  ['LH-E · last hour with extra signals', '101 · 69% · +0.13%', '46 · 33% · −0.04%', ['crit', 'Failed']]
+];
+function chipEl(v) { const c = el('span', { class: 'chip ' + v[0] }); c.insertAdjacentHTML('afterbegin', ICON[v[0]]); c.append(document.createTextNode(v[1])); return c; }
+function renderResults() {
+  const r1 = $('round1'); ROUND1.forEach(([a, b, v]) => { const tr = el('tr'); tr.append(el('td', {}, a), el('td', {}, b)); const td = el('td'); td.append(chipEl(v)); tr.append(td); r1.append(tr); });
+  const r2 = $('round2'); ROUND2.forEach(([a, b, c, v]) => { const tr = el('tr'); tr.append(el('td', {}, a), el('td', { class: 'num' }, b), el('td', { class: 'num' }, c)); const td = el('td'); td.append(chipEl(v)); tr.append(td); r2.append(tr); });
+}
+
+/* ---------- headline points and next steps, written from the data where they depend on it ---------- */
+function headlines() {
+  const best = (size, rule, k) => D.strategies.slice().sort((a, b) => b.views[`${size}_${rule}`][k] - a.views[`${size}_${rule}`][k])[0];
+  const sizeBig = D.budgets[D.budgets.length - 1], sizeSmall = D.budgets[0];
+  const bBig = best(sizeBig, 'on', 'ret'), bBigOff = best(sizeBig, 'off', 'ret'), tradesSmall = Math.max(...D.strategies.map((s) => s.views[`${sizeSmall}_on`].trades));
+  const items = [
+    ['Only gap fill held up out of sample.', 'One gap-fill formula met the pre-registered bar on a locked period (35 trades, 71% win rate). The relative-strength, gap-and-go and last-hour formulas failed, and none of the three original strategies is shown to be profitable.'],
+    [`At ${money(sizeSmall)} the fees leave no room.`, `Moomoo's $0.99 per order is ${(1.98 / sizeSmall * 100).toFixed(2)}% of a ${money(sizeSmall)} round trip before commission. With your own fee rule on, ${tradesSmall < 0.5 ? 'no strategy could take a single trade' : 'the most any strategy managed was ' + fmtN(tradesSmall) + ' trades'} at that size over the whole period.`],
+    ['Fees decide which strategies can trade at all.', `At ${money(sizeBig)} with the fee rule on, the best whole-period profit was ${fmtPct(V0(bBig, sizeBig, 'on').ret)}, from ${bBig.name}. With the rule off it was ${fmtPct(V0(bBigOff, sizeBig, 'off').ret)}, from ${bBigOff.name}. Many formulas were tuned with tight stops under the old placeholder fee.`],
+    ['A high win rate is not the same as profit.', 'The high-win-rate gap-fill formula wins about 59 to 71% of its trades, yet its profit factor on data never used for tuning is only 1.18. The profit comes from the size of the wins and losses, not how often you win.']
+  ];
+  const ul = $('points'); items.forEach(([h, t]) => { const li = el('li'); li.append(el('b', {}, h), el('span', {}, t)); ul.append(li); });
+  const nx = $('nextlist');
+  [['Paper trade gap fill if you want to pursue it.', ' About 0.8 filled events appear per trading day across 11 symbols (about 0.45 once the engine\'s one-position and three-trades-a-day rules apply), so a few hundred paper trades takes months. It is not built as a bot strategy yet.'],
+   ['Decide the account size first.', ` Moomoo's per-order fee makes trades under about ${money(1000)} unprofitable for any edge found here, and a $10,000 or larger trade is the realistic floor. Re-tuning the formulas under the real fees would favour wider stops and larger targets.`],
+   ['Add symbols and history.', ' A year or two of data and more stocks are the cheapest way to raise confidence in every number on this page.'],
+   ['Do not trade the relative-strength, gap-and-go, last-hour or breakout ideas on this evidence, and do not run Range.', '']].forEach(([a, b]) => { const li = el('li'); li.append(el('b', {}, a), document.createTextNode(b)); nx.append(li); });
+}
+const V0 = (s, size, rule) => s.views[`${size}_${rule}`];
+
+function bench() {
+  const b = D.benchmarks;
+  $('bench').textContent = `For scale: simply buying and holding these 11 stocks in equal amounts over the same dates returned ${fmtPct(b.equal_weight_buy_hold_pct, 1)} (SPY alone ${fmtPct(b.spy_buy_hold_pct, 1)}). That needs no trading, but it carries overnight and market risk that a day-trading strategy, which is flat every evening, does not.`;
+}
+function render() { explain(); renderTable(); renderChart(); }
+function init() {
+  buildFilters(); headlines(); renderFees(); renderResults(); bench();
+  $('toggleall').addEventListener('click', () => { state.all = !state.all; renderTable(); });
+  $('viewtoggle').addEventListener('click', () => { state.table = !state.table; $('viewtoggle').textContent = state.table ? 'Show as chart' : 'Show as table'; $('viewtoggle').setAttribute('aria-pressed', String(state.table)); renderChart(); });
+  const top = ranked().slice(0, 3).map((s) => s.id); top.forEach((id) => { state.sel.push(id); state.slot[id] = state.sel.length; });
+  render();
+  if (window.ResizeObserver) { let t; new ResizeObserver(() => { clearTimeout(t); t = setTimeout(renderChart, 120); }).observe($('chartbox')); }
+}
+init();
+</script>
