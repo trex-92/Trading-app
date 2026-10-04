@@ -38,7 +38,7 @@ class MoomooRestBroker(Broker):
         self.http = http or httpx.Client(base_url=BASE, timeout=15)
         self.auth = session or OAuthSession(TokenStore())
         self._sleep = sleep
-        self.sim_market = int(os.getenv("MOOMOO_SIM_MARKET", "0")) or US_MARKET_ID
+        self.sim_market = int(os.getenv("MOOMOO_SIM_MARKET") or 0) or US_MARKET_ID
         self.acc_id = acc_id or self._discover_account()
 
     # ---- plumbing -------------------------------------------------------------------------
@@ -138,7 +138,7 @@ class MoomooRestBroker(Broker):
         limit: LIMIT_BUFFER_PCT beyond the last price. Behaves like a market order with a slippage cap."""
         if order.price:
             return order.price
-        buf = float(os.getenv("MOOMOO_LIMIT_BUFFER_PCT", "1")) / 100
+        buf = float(os.getenv("MOOMOO_LIMIT_BUFFER_PCT") or 1) / 100
         px = self.last_price(order.symbol)
         return round(px * (1 + buf if order.side == "BUY" else 1 - buf), 2)
 

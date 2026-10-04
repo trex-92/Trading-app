@@ -13,7 +13,9 @@ def load_dotenv(*paths: Path) -> None:
             if not line or line.startswith("#") or "=" not in line:
                 continue
             key, _, value = line.partition("=")
-            os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+            value = value.strip().strip('"').strip("'")
+            if value:  # a blank value means "use the default", not an empty string
+                os.environ.setdefault(key.strip(), value)
 
 
 load_dotenv(Path.cwd() / "bot" / ".env", Path(__file__).with_name(".env"))
